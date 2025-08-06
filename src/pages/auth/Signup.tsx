@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, User, Lock, Mail, Globe, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams, useParams } from "react-router-dom";
+import { Eye, EyeOff, User, Lock, Mail, Globe, Users, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +13,7 @@ export const Signup = () => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
+    mobile: "",
     username: "",
     password: "",
     confirmPassword: "",
@@ -21,6 +22,23 @@ export const Signup = () => {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const { referralCode: urlReferralCode } = useParams();
+
+  // Auto-fill referral code from URL (both query param and path param)
+  useEffect(() => {
+    const refCode = searchParams.get('ref') || urlReferralCode;
+    if (refCode && refCode.length > 0 && !isNaN(Number(refCode))) {
+      setFormData(prev => ({
+        ...prev,
+        referralCode: refCode
+      }));
+      toast({
+        title: "Referral Code Applied!",
+        description: `Welcome! Using referral code: ${refCode}`,
+      });
+    }
+  }, [searchParams, urlReferralCode, toast]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +115,25 @@ export const Signup = () => {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Mobile Number Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Mobile Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    placeholder="Enter your mobile number"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData({...formData, mobile: e.target.value})}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  We'll send you verification SMS to this number
+                </p>
               </div>
 
               {/* Email Input */}
