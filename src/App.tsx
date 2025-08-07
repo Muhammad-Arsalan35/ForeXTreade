@@ -10,6 +10,7 @@ import { Signup } from "./pages/auth/Signup";
 import { Financial } from "./pages/Financial";
 import { Records } from "./pages/Records";
 import { Invite } from "./pages/Invite";
+import { Deposit } from "./pages/Deposit";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route index element={<Dashboard />} />
             <Route path="records" element={<Records />} />
             <Route path="financial" element={<Financial />} />
+            <Route path="deposit" element={<Deposit />} />
             <Route path="notices" element={<div className="p-8 text-center">Notices Page - Coming Soon</div>} />
             <Route path="coupons" element={<div className="p-8 text-center">Coupons Page - Coming Soon</div>} />
             <Route path="messages" element={<div className="p-8 text-center">Messages Page - Coming Soon</div>} />
