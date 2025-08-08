@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router-dom";
-import { Eye, EyeOff, User, Lock, Mail, Globe, Users, Phone } from "lucide-react";
+import { Eye, EyeOff, User, Lock, Globe, Users, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,7 +12,6 @@ export const Signup = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    email: "",
     mobile: "",
     username: "",
     password: "",
@@ -136,21 +135,6 @@ export const Signup = () => {
                 </p>
               </div>
 
-              {/* Email Input */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
 
               {/* Username Input */}
               <div className="space-y-2">

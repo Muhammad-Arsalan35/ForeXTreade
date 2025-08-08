@@ -1,14 +1,22 @@
-import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BottomNavigation } from "./BottomNavigation";
 import { TopHeader } from "./TopHeader";
 
 export const AppLayout = () => {
   const location = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Mock authentication
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Set to false to require login
 
   // Don't show layout on auth pages
   const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(location.pathname);
+
+  // Redirect to login if not authenticated and not on auth page
+  useEffect(() => {
+    if (!isAuthenticated && !isAuthPage) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, isAuthPage, navigate]);
 
   if (isAuthPage) {
     return <Outlet />;
