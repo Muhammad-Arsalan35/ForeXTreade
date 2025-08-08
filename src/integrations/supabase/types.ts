@@ -80,6 +80,505 @@ export type Database = {
         }
         Relationships: []
       }
+      referrals: {
+        Row: {
+          commission_rate: number
+          created_at: string | null
+          id: string
+          last_commission_date: string | null
+          level: Database["public"]["Enums"]["referral_level_enum"]
+          referral_code_used: string
+          referred_id: string
+          referrer_id: string
+          registration_completed: boolean | null
+          status: Database["public"]["Enums"]["referral_status_enum"] | null
+          total_commission_earned: number | null
+          updated_at: string | null
+          validity_status: boolean | null
+        }
+        Insert: {
+          commission_rate: number
+          created_at?: string | null
+          id?: string
+          last_commission_date?: string | null
+          level: Database["public"]["Enums"]["referral_level_enum"]
+          referral_code_used: string
+          referred_id: string
+          referrer_id: string
+          registration_completed?: boolean | null
+          status?: Database["public"]["Enums"]["referral_status_enum"] | null
+          total_commission_earned?: number | null
+          updated_at?: string | null
+          validity_status?: boolean | null
+        }
+        Update: {
+          commission_rate?: number
+          created_at?: string | null
+          id?: string
+          last_commission_date?: string | null
+          level?: Database["public"]["Enums"]["referral_level_enum"]
+          referral_code_used?: string
+          referred_id?: string
+          referrer_id?: string
+          registration_completed?: boolean | null
+          status?: Database["public"]["Enums"]["referral_status_enum"] | null
+          total_commission_earned?: number | null
+          updated_at?: string | null
+          validity_status?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          base_reward: number
+          category: Database["public"]["Enums"]["task_category_enum"]
+          created_at: string | null
+          daily_completion_limit: number | null
+          description: string | null
+          duration_seconds: number | null
+          end_date: string | null
+          id: string
+          max_completions_per_user: number | null
+          media_type: Database["public"]["Enums"]["media_type_enum"] | null
+          media_url: string | null
+          min_vip_level: Database["public"]["Enums"]["vip_level_enum"] | null
+          min_watch_time: number | null
+          requirements: Json | null
+          start_date: string | null
+          success_rate: number | null
+          task_status: Database["public"]["Enums"]["task_status_enum"] | null
+          task_type: Database["public"]["Enums"]["task_type_enum"]
+          thumbnail_url: string | null
+          title: string
+          total_budget: number | null
+          total_completions: number | null
+          total_views: number | null
+          updated_at: string | null
+          used_budget: number | null
+          vip_multiplier: Json | null
+        }
+        Insert: {
+          base_reward: number
+          category: Database["public"]["Enums"]["task_category_enum"]
+          created_at?: string | null
+          daily_completion_limit?: number | null
+          description?: string | null
+          duration_seconds?: number | null
+          end_date?: string | null
+          id?: string
+          max_completions_per_user?: number | null
+          media_type?: Database["public"]["Enums"]["media_type_enum"] | null
+          media_url?: string | null
+          min_vip_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+          min_watch_time?: number | null
+          requirements?: Json | null
+          start_date?: string | null
+          success_rate?: number | null
+          task_status?: Database["public"]["Enums"]["task_status_enum"] | null
+          task_type: Database["public"]["Enums"]["task_type_enum"]
+          thumbnail_url?: string | null
+          title: string
+          total_budget?: number | null
+          total_completions?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+          used_budget?: number | null
+          vip_multiplier?: Json | null
+        }
+        Update: {
+          base_reward?: number
+          category?: Database["public"]["Enums"]["task_category_enum"]
+          created_at?: string | null
+          daily_completion_limit?: number | null
+          description?: string | null
+          duration_seconds?: number | null
+          end_date?: string | null
+          id?: string
+          max_completions_per_user?: number | null
+          media_type?: Database["public"]["Enums"]["media_type_enum"] | null
+          media_url?: string | null
+          min_vip_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+          min_watch_time?: number | null
+          requirements?: Json | null
+          start_date?: string | null
+          success_rate?: number | null
+          task_status?: Database["public"]["Enums"]["task_status_enum"] | null
+          task_type?: Database["public"]["Enums"]["task_type_enum"]
+          thumbnail_url?: string | null
+          title?: string
+          total_budget?: number | null
+          total_completions?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+          used_budget?: number | null
+          vip_multiplier?: Json | null
+        }
+        Relationships: []
+      }
+      team_structure: {
+        Row: {
+          active_members: number | null
+          created_at: string | null
+          id: string
+          level_depth: number | null
+          monthly_team_commission: number | null
+          parent_id: string | null
+          total_a_team: number | null
+          total_b_team: number | null
+          total_c_team: number | null
+          total_team_commission: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          active_members?: number | null
+          created_at?: string | null
+          id?: string
+          level_depth?: number | null
+          monthly_team_commission?: number | null
+          parent_id?: string | null
+          total_a_team?: number | null
+          total_b_team?: number | null
+          total_c_team?: number | null
+          total_team_commission?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          active_members?: number | null
+          created_at?: string | null
+          id?: string
+          level_depth?: number | null
+          monthly_team_commission?: number | null
+          parent_id?: string | null
+          total_a_team?: number | null
+          total_b_team?: number | null
+          total_c_team?: number | null
+          total_team_commission?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_structure_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_structure_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_sessions: {
+        Row: {
+          created_at: string | null
+          device_info: string | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          refresh_token: string
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_info?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          refresh_token: string
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_info?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          refresh_token?: string
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_tasks: {
+        Row: {
+          assigned_at: string | null
+          bonus_earned: number | null
+          completed_at: string | null
+          completion_data: Json | null
+          expires_at: string | null
+          id: string
+          progress_percentage: number | null
+          reward_earned: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["user_task_status_enum"] | null
+          task_id: string
+          time_spent: number | null
+          user_id: string
+          verification_notes: string | null
+          verified: boolean | null
+          verified_by: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          bonus_earned?: number | null
+          completed_at?: string | null
+          completion_data?: Json | null
+          expires_at?: string | null
+          id?: string
+          progress_percentage?: number | null
+          reward_earned?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["user_task_status_enum"] | null
+          task_id: string
+          time_spent?: number | null
+          user_id: string
+          verification_notes?: string | null
+          verified?: boolean | null
+          verified_by?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          bonus_earned?: number | null
+          completed_at?: string | null
+          completion_data?: Json | null
+          expires_at?: string | null
+          id?: string
+          progress_percentage?: number | null
+          reward_earned?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["user_task_status_enum"] | null
+          task_id?: string
+          time_spent?: number | null
+          user_id?: string
+          verification_notes?: string | null
+          verified?: boolean | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tasks_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          account_locked_until: string | null
+          auth_user_id: string | null
+          created_at: string | null
+          full_name: string
+          id: string
+          income_wallet_balance: number | null
+          last_login: string | null
+          login_attempts: number | null
+          personal_wallet_balance: number | null
+          phone_number: string | null
+          position_title: string | null
+          profile_avatar: string | null
+          referral_code: string
+          referral_level: number | null
+          referred_by: string | null
+          total_earnings: number | null
+          total_invested: number | null
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
+          updated_at: string | null
+          user_status: Database["public"]["Enums"]["user_status_enum"] | null
+          username: string
+          vip_level: Database["public"]["Enums"]["vip_level_enum"] | null
+        }
+        Insert: {
+          account_locked_until?: string | null
+          auth_user_id?: string | null
+          created_at?: string | null
+          full_name: string
+          id?: string
+          income_wallet_balance?: number | null
+          last_login?: string | null
+          login_attempts?: number | null
+          personal_wallet_balance?: number | null
+          phone_number?: string | null
+          position_title?: string | null
+          profile_avatar?: string | null
+          referral_code?: string
+          referral_level?: number | null
+          referred_by?: string | null
+          total_earnings?: number | null
+          total_invested?: number | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
+          updated_at?: string | null
+          user_status?: Database["public"]["Enums"]["user_status_enum"] | null
+          username: string
+          vip_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+        }
+        Update: {
+          account_locked_until?: string | null
+          auth_user_id?: string | null
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          income_wallet_balance?: number | null
+          last_login?: string | null
+          login_attempts?: number | null
+          personal_wallet_balance?: number | null
+          phone_number?: string | null
+          position_title?: string | null
+          profile_avatar?: string | null
+          referral_code?: string
+          referral_level?: number | null
+          referred_by?: string | null
+          total_earnings?: number | null
+          total_invested?: number | null
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
+          updated_at?: string | null
+          user_status?: Database["public"]["Enums"]["user_status_enum"] | null
+          username?: string
+          vip_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vip_levels: {
+        Row: {
+          color_scheme: string | null
+          commission_rate: number | null
+          created_at: string | null
+          daily_tasks_available: number
+          deposit_required: number
+          earning_potential: number
+          id: number
+          level_name: string
+          level_number: number
+          special_benefits: string | null
+          withdrawal_limit: number | null
+        }
+        Insert: {
+          color_scheme?: string | null
+          commission_rate?: number | null
+          created_at?: string | null
+          daily_tasks_available: number
+          deposit_required: number
+          earning_potential: number
+          id?: number
+          level_name: string
+          level_number: number
+          special_benefits?: string | null
+          withdrawal_limit?: number | null
+        }
+        Update: {
+          color_scheme?: string | null
+          commission_rate?: number | null
+          created_at?: string | null
+          daily_tasks_available?: number
+          deposit_required?: number
+          earning_potential?: number
+          id?: number
+          level_name?: string
+          level_number?: number
+          special_benefits?: string | null
+          withdrawal_limit?: number | null
+        }
+        Relationships: []
+      }
+      vip_upgrades: {
+        Row: {
+          from_level: Database["public"]["Enums"]["vip_level_enum"] | null
+          id: string
+          status: Database["public"]["Enums"]["transaction_status_enum"] | null
+          to_level: Database["public"]["Enums"]["vip_level_enum"]
+          upgrade_amount: number
+          upgrade_date: string | null
+          user_id: string
+        }
+        Insert: {
+          from_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+          id?: string
+          status?: Database["public"]["Enums"]["transaction_status_enum"] | null
+          to_level: Database["public"]["Enums"]["vip_level_enum"]
+          upgrade_amount: number
+          upgrade_date?: string | null
+          user_id: string
+        }
+        Update: {
+          from_level?: Database["public"]["Enums"]["vip_level_enum"] | null
+          id?: string
+          status?: Database["public"]["Enums"]["transaction_status_enum"] | null
+          to_level?: Database["public"]["Enums"]["vip_level_enum"]
+          upgrade_amount?: number
+          upgrade_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vip_upgrades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -88,7 +587,98 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      deposit_status_enum:
+        | "initiated"
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "expired"
+      media_type_enum: "image" | "video" | "url" | "app_link"
+      notification_type_enum:
+        | "info"
+        | "success"
+        | "warning"
+        | "error"
+        | "promotion"
+      payment_method_enum:
+        | "bank_transfer"
+        | "easypaisa"
+        | "jazzcash"
+        | "mobile_banking"
+      period_type_enum: "weekly" | "monthly" | "yearly"
+      referral_level_enum: "A" | "B" | "C"
+      referral_status_enum: "pending" | "active" | "expired" | "cancelled"
+      security_event_enum:
+        | "login_success"
+        | "login_failed"
+        | "password_reset"
+        | "account_locked"
+        | "suspicious_activity"
+      setting_type_enum: "string" | "number" | "boolean" | "json"
+      severity_enum: "low" | "medium" | "high" | "critical"
+      task_category_enum:
+        | "Commercial Advertisement"
+        | "Commodity Advertising"
+        | "Film Publicity"
+        | "Social Media"
+        | "Review Task"
+      task_status_enum: "active" | "inactive" | "expired" | "draft"
+      task_type_enum:
+        | "video_watch"
+        | "image_view"
+        | "app_download"
+        | "survey"
+        | "social_action"
+      transaction_status_enum:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "cancelled"
+      transaction_type_enum:
+        | "task_reward"
+        | "referral_commission"
+        | "vip_upgrade"
+        | "deposit"
+        | "withdrawal"
+        | "admin_adjustment"
+        | "security_deposit"
+        | "tax_deduction"
+        | "bonus_reward"
+        | "penalty"
+        | "refund"
+      user_status_enum:
+        | "active"
+        | "suspended"
+        | "banned"
+        | "pending_verification"
+      user_task_status_enum:
+        | "assigned"
+        | "started"
+        | "in_progress"
+        | "completed"
+        | "failed"
+        | "expired"
+      vip_level_enum:
+        | "VIP1"
+        | "VIP2"
+        | "VIP3"
+        | "VIP4"
+        | "VIP5"
+        | "VIP6"
+        | "VIP7"
+        | "VIP8"
+        | "VIP9"
+        | "VIP10"
+      wallet_type_enum: "income_wallet" | "personal_wallet"
+      withdrawal_status_enum:
+        | "pending"
+        | "approved"
+        | "processing"
+        | "completed"
+        | "rejected"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -215,6 +805,111 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      deposit_status_enum: [
+        "initiated",
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "expired",
+      ],
+      media_type_enum: ["image", "video", "url", "app_link"],
+      notification_type_enum: [
+        "info",
+        "success",
+        "warning",
+        "error",
+        "promotion",
+      ],
+      payment_method_enum: [
+        "bank_transfer",
+        "easypaisa",
+        "jazzcash",
+        "mobile_banking",
+      ],
+      period_type_enum: ["weekly", "monthly", "yearly"],
+      referral_level_enum: ["A", "B", "C"],
+      referral_status_enum: ["pending", "active", "expired", "cancelled"],
+      security_event_enum: [
+        "login_success",
+        "login_failed",
+        "password_reset",
+        "account_locked",
+        "suspicious_activity",
+      ],
+      setting_type_enum: ["string", "number", "boolean", "json"],
+      severity_enum: ["low", "medium", "high", "critical"],
+      task_category_enum: [
+        "Commercial Advertisement",
+        "Commodity Advertising",
+        "Film Publicity",
+        "Social Media",
+        "Review Task",
+      ],
+      task_status_enum: ["active", "inactive", "expired", "draft"],
+      task_type_enum: [
+        "video_watch",
+        "image_view",
+        "app_download",
+        "survey",
+        "social_action",
+      ],
+      transaction_status_enum: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      transaction_type_enum: [
+        "task_reward",
+        "referral_commission",
+        "vip_upgrade",
+        "deposit",
+        "withdrawal",
+        "admin_adjustment",
+        "security_deposit",
+        "tax_deduction",
+        "bonus_reward",
+        "penalty",
+        "refund",
+      ],
+      user_status_enum: [
+        "active",
+        "suspended",
+        "banned",
+        "pending_verification",
+      ],
+      user_task_status_enum: [
+        "assigned",
+        "started",
+        "in_progress",
+        "completed",
+        "failed",
+        "expired",
+      ],
+      vip_level_enum: [
+        "VIP1",
+        "VIP2",
+        "VIP3",
+        "VIP4",
+        "VIP5",
+        "VIP6",
+        "VIP7",
+        "VIP8",
+        "VIP9",
+        "VIP10",
+      ],
+      wallet_type_enum: ["income_wallet", "personal_wallet"],
+      withdrawal_status_enum: [
+        "pending",
+        "approved",
+        "processing",
+        "completed",
+        "rejected",
+        "cancelled",
+      ],
+    },
   },
 } as const
