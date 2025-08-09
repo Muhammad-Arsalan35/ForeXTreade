@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, User, Lock, Globe } from "lucide-react";
+import { Eye, EyeOff, Phone, Lock, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +10,7 @@ import heroBanner from "@/assets/hero-banner.jpg";
 export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
+    phone: "",
     password: "",
     rememberMe: false
   });
@@ -48,16 +48,16 @@ export const Login = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email Input */}
+              {/* Phone Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Email or Username</label>
+                <label className="text-sm font-medium">Phone Number</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
-                    type="email"
-                    placeholder="Enter your email or username"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    type="tel"
+                    placeholder="Enter your phone number"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="pl-10"
                     required
                   />

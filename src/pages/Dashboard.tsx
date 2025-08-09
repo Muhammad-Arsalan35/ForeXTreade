@@ -6,12 +6,14 @@ import {
   Award, 
   Clock,
   Eye,
-  PlayCircle
+  PlayCircle,
+  Plus
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from "react-router-dom";
 import userAvatar from "@/assets/user-avatar.jpg";
 import vipCard from "@/assets/vip-card.jpg";
 import taskCommercial from "@/assets/task-commercial.jpg";
@@ -92,6 +94,7 @@ const vipLevels = [
 
 export const Dashboard = () => {
   const [selectedTask, setSelectedTask] = useState<number | null>(null);
+  const navigate = useNavigate();
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -161,6 +164,31 @@ export const Dashboard = () => {
           </Card>
         ))}
       </div>
+
+      {/* Quick Actions */}
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <Button 
+              onClick={() => navigate('/deposit')}
+              className="h-20 bg-gradient-golden hover:shadow-golden transition-all duration-300 flex flex-col items-center justify-center space-y-2"
+            >
+              <Plus className="w-6 h-6" />
+              <span>Deposit Funds</span>
+            </Button>
+            <Button 
+              variant="outline"
+              className="h-20 flex flex-col items-center justify-center space-y-2 hover:bg-muted"
+            >
+              <DollarSign className="w-6 h-6" />
+              <span>Withdraw</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Today's Tasks */}
       <Card className="shadow-card">
