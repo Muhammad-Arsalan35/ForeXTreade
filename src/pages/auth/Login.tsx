@@ -28,6 +28,9 @@ export const Login = () => {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.phone, // Using phone as email for now
         password: formData.password,
+        options: {
+          captchaToken: undefined // Disable captcha
+        }
       });
 
       if (error) {
@@ -55,10 +58,6 @@ export const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSocialLogin = (provider: string) => {
-    console.log(`Login with ${provider}`);
   };
 
   return (
@@ -152,35 +151,6 @@ export const Login = () => {
                 {loading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
-
-            {/* Social Login */}
-            <div className="space-y-3">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-muted" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleSocialLogin("google")}
-                  className="hover:bg-muted"
-                >
-                  Google
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleSocialLogin("facebook")}
-                  className="hover:bg-muted"
-                >
-                  Facebook
-                </Button>
-              </div>
-            </div>
 
             {/* Sign Up Link */}
             <div className="text-center">

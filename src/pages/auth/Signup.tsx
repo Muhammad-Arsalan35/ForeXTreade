@@ -72,6 +72,7 @@ export const Signup = () => {
         password: formData.password,
         options: {
           emailRedirectTo: redirectUrl,
+          captchaToken: undefined, // Disable captcha
           data: {
             full_name: formData.fullName,
             username: formData.username,
@@ -110,10 +111,6 @@ export const Signup = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSocialSignup = (provider: string) => {
-    console.log(`Signup with ${provider}`);
   };
 
   return (
@@ -286,35 +283,6 @@ export const Signup = () => {
                 {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
-
-            {/* Social Signup */}
-            <div className="space-y-3">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-muted" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or sign up with</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleSocialSignup("google")}
-                  className="hover:bg-muted"
-                >
-                  Google
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleSocialSignup("facebook")}
-                  className="hover:bg-muted"
-                >
-                  Facebook
-                </Button>
-              </div>
-            </div>
 
             {/* Login Link */}
             <div className="text-center">
