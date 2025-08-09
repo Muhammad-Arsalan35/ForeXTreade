@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-
+import { supabase } from "@/integrations/supabase/client";
 export const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     mobile: "",
@@ -39,7 +40,7 @@ export const Signup = () => {
     }
   }, [searchParams, urlReferralCode, toast]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
@@ -61,18 +62,54 @@ export const Signup = () => {
       return;
     }
 
-    // Handle signup logic here
-    console.log("Signup attempt:", formData);
-    
-    toast({
-      title: "Success!",
-      description: "Account created successfully. Please check your email for verification.",
-    });
-    
-    // Redirect to login after successful signup
-    setTimeout(() => {
-      navigate("/login");
-    }, 2000);
+    setLoading(true);
+
+    try {
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.mobile, // Using mobile as email for now
+        password: formData.password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: formData.fullName,
+            username: formData.username,
+            mobile: formData.mobile,
+            referral_code: formData.referralCode
+          }
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Signup Failed",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (data.user) {
+        toast({
+          title: "Success!",
+          description: "Account created successfully. Please check your email for verification.",
+        });
+        
+        // Redirect to login after successful signup
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
+      }
+    } catch (error) {
+      toast({
+        title: "Signup Failed",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSocialSignup = (provider: string) => {
@@ -243,9 +280,10 @@ export const Signup = () => {
               {/* Signup Button */}
               <Button 
                 type="submit" 
+                disabled={loading}
                 className="w-full bg-gradient-golden hover:shadow-golden transition-all duration-300"
               >
-                Create Account
+                {loading ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
 

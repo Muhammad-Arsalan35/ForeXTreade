@@ -1,8 +1,32 @@
-import { Bell, Search, Menu } from "lucide-react";
+import { Bell, Search, Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import userAvatar from "@/assets/user-avatar.jpg";
 
 export const TopHeader = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+      navigate('/login');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to logout",
+        variant: "destructive"
+      });
+    }
+  };
   return (
     <header className="bg-gradient-primary border-b border-border sticky top-0 z-50 shadow-elegant">
       <div className="container mx-auto px-4 py-3">
@@ -38,6 +62,10 @@ export const TopHeader = () => {
                 <p className="text-xs opacity-75">VIP Level 2</p>
               </div>
             </div>
+            
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-primary-foreground">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
