@@ -66,47 +66,15 @@ export const Signup = () => {
 
     setLoading(true);
 
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        phone: formData.mobile,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            username: formData.username,
-            mobile: formData.mobile,
-            referral_code: formData.referralCode
-          }
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Signup Failed",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (data.user) {
-        toast({
-          title: "Success!",
-          description: "Account created successfully. You can now login.",
-        });
-        
-        // Navigate to home screen after successful signup
-        navigate("/", { replace: true });
-      }
-    } catch (error) {
-      toast({
-        title: "Signup Failed",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    // No authentication needed - just show success and navigate
+    toast({
+      title: "Welcome!",
+      description: "Account created successfully.",
+    });
+    
+    // Navigate to home screen directly
+    navigate("/", { replace: true });
+    setLoading(false);
   };
 
   return (

@@ -24,38 +24,15 @@ export const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        phone: formData.phone,
-        password: formData.password
-      });
-
-      if (error) {
-        toast({
-          title: "Login Failed",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (data.user) {
-        toast({
-          title: "Login Successful",
-          description: "Welcome back!",
-        });
-        // Navigate to home screen after successful login
-        navigate("/", { replace: true });
-      }
-    } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    // No authentication needed - just show success and navigate
+    toast({
+      title: "Welcome Back!",
+      description: "Successfully signed in.",
+    });
+    
+    // Navigate to home screen directly
+    navigate("/", { replace: true });
+    setLoading(false);
   };
 
   return (
