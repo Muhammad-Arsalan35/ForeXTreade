@@ -72,7 +72,6 @@ export const Signup = () => {
         password: formData.password,
         options: {
           emailRedirectTo: redirectUrl,
-          captchaToken: undefined, // Disable captcha
           data: {
             full_name: formData.fullName,
             username: formData.username,

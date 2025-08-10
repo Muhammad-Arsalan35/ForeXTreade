@@ -27,10 +27,7 @@ export const Login = () => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.phone, // Using phone as email for now
-        password: formData.password,
-        options: {
-          captchaToken: undefined // Disable captcha
-        }
+        password: formData.password
       });
 
       if (error) {
