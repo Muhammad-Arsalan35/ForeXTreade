@@ -26,7 +26,7 @@ export const Login = () => {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.phone, // Using phone as email for now
+        phone: formData.phone,
         password: formData.password
       });
 
