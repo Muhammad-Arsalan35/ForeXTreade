@@ -69,8 +69,11 @@ export const Signup = () => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
+      // Generate a valid email format from mobile number for Supabase
+      const generatedEmail = `${formData.mobile}@taskmaster.app`;
+      
       const { data, error } = await supabase.auth.signUp({
-        email: formData.mobile, // Using mobile as email for now
+        email: generatedEmail,
         password: formData.password,
         options: {
           emailRedirectTo: redirectUrl,
