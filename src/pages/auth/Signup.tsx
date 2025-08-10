@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { Eye, EyeOff, User, Lock, Globe, Users, Phone } from "lucide-react";
@@ -7,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+
 export const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -93,13 +95,11 @@ export const Signup = () => {
       if (data.user) {
         toast({
           title: "Success!",
-          description: "Account created successfully. Please check your email for verification.",
+          description: "Account created successfully. You can now login.",
         });
         
-        // Redirect to login after successful signup
-        setTimeout(() => {
-          navigate("/login");
-        }, 2000);
+        // Navigate to home screen after successful signup
+        navigate("/", { replace: true });
       }
     } catch (error) {
       toast({
@@ -167,7 +167,6 @@ export const Signup = () => {
                   We'll send you verification SMS to this number
                 </p>
               </div>
-
 
               {/* Username Input */}
               <div className="space-y-2">

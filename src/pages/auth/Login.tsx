@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Phone, Lock, Globe } from "lucide-react";
@@ -7,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import heroBanner from "@/assets/hero-banner.jpg";
 
 export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -44,7 +44,8 @@ export const Login = () => {
           title: "Login Successful",
           description: "Welcome back!",
         });
-        navigate("/");
+        // Navigate to home screen after successful login
+        navigate("/", { replace: true });
       }
     } catch (error) {
       toast({
