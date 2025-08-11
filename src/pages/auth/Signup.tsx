@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router-dom";
-import { Eye, EyeOff, User, Lock, Globe, Users, Mail } from "lucide-react";
+import { Eye, EyeOff, User, Lock, Globe, Users, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +15,7 @@ export const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    email: "",
+    phone: "",
     username: "",
     password: "",
     confirmPassword: "",
@@ -70,14 +70,13 @@ export const Signup = () => {
       const redirectUrl = `${window.location.origin}/`;
       
       const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
+        phone: formData.phone,
         password: formData.password,
         options: {
-          emailRedirectTo: redirectUrl,
           data: {
             full_name: formData.fullName,
             username: formData.username,
-            email: formData.email,
+            phone: formData.phone,
             referral_code: formData.referralCode
           }
         }
@@ -149,16 +148,16 @@ export const Signup = () => {
                 </div>
               </div>
 
-              {/* Email Input */}
+              {/* Phone Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Email Address</label>
+                <label className="text-sm font-medium">Phone Number</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    type="tel"
+                    placeholder="Enter your phone number"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="pl-10"
                     required
                   />
