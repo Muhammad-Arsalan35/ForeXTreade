@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router-dom";
-import { Eye, EyeOff, User, Lock, Globe, Users, Phone } from "lucide-react";
+import { Eye, EyeOff, User, Lock, Globe, Users, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +15,7 @@ export const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
-    mobile: "",
+    email: "",
     username: "",
     password: "",
     confirmPassword: "",
@@ -69,18 +69,15 @@ export const Signup = () => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      // Generate a valid email format from mobile number for Supabase
-      const generatedEmail = `${formData.mobile}@taskmaster.app`;
-      
       const { data, error } = await supabase.auth.signUp({
-        email: generatedEmail,
+        email: formData.email,
         password: formData.password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
             full_name: formData.fullName,
             username: formData.username,
-            mobile: formData.mobile,
+            email: formData.email,
             referral_code: formData.referralCode
           }
         }
@@ -152,23 +149,20 @@ export const Signup = () => {
                 </div>
               </div>
 
-              {/* Mobile Number Input */}
+              {/* Email Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Mobile Number</label>
+                <label className="text-sm font-medium">Email Address</label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
-                    type="tel"
-                    placeholder="Enter your mobile number"
-                    value={formData.mobile}
-                    onChange={(e) => setFormData({...formData, mobile: e.target.value})}
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="pl-10"
                     required
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  We'll send you verification SMS to this number
-                </p>
               </div>
 
               {/* Username Input */}
