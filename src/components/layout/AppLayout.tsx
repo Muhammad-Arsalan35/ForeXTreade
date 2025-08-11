@@ -36,13 +36,24 @@ export const AppLayout = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // No authentication required - removed redirect logic
+  // Redirect to login if not authenticated and not on auth page
+  useEffect(() => {
+    if (!loading && !user && !isAuthPage) {
+      navigate('/login');
+    }
+  }, [user, isAuthPage, navigate, loading]);
 
   if (isAuthPage) {
     return <Outlet />;
   }
 
-  // No loading screen needed since no authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-primary flex items-center justify-center">
+        <div className="text-primary-foreground text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
