@@ -68,15 +68,17 @@ export const Signup = () => {
 
     try {
       const redirectUrl = `${window.location.origin}/`;
+      const phoneRaw = formData.phone.trim().replace(/\s+/g, "");
+      const phoneE164 = phoneRaw.startsWith("+") ? phoneRaw : `+${phoneRaw}`;
       
       const { data, error } = await supabase.auth.signUp({
-        phone: formData.phone,
+        phone: phoneE164,
         password: formData.password,
         options: {
           data: {
             full_name: formData.fullName,
             username: formData.username,
-            phone: formData.phone,
+            phone: phoneE164,
             referral_code: formData.referralCode
           }
         }

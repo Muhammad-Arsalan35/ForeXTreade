@@ -25,8 +25,10 @@ export const Login = () => {
     setLoading(true);
 
     try {
+      const phoneRaw = formData.phone.trim().replace(/\s+/g, "");
+      const phoneE164 = phoneRaw.startsWith("+") ? phoneRaw : `+${phoneRaw}`;
       const { data, error } = await supabase.auth.signInWithPassword({
-        phone: formData.phone,
+        phone: phoneE164,
         password: formData.password
       });
 
