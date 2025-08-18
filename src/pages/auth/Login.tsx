@@ -20,39 +20,97 @@ export const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const formatPhoneNumber = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) {
+      return `+92${cleaned.substring(1)}`;
+    }
+    if (cleaned.startsWith('92')) {
+      return `+${cleaned}`;
+    }
+    if (cleaned.length === 11) {
+      return `+92${cleaned.substring(1)}`;
+    }
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    return `+92${cleaned}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const phoneRaw = formData.phone.trim().replace(/\s+/g, "");
-      const phoneE164 = phoneRaw.startsWith("+") ? phoneRaw : `+${phoneRaw}`;
-      const { data, error } = await supabase.auth.signInWithPassword({
-        phone: phoneE164,
+      const formattedPhone = formatPhoneNumber(formData.phone);
+      
+      console.log('Attempting login with:', { phone: formData.phone, formattedPhone });
+      
+      // Try phone authentication first
+      let { data, error } = await supabase.auth.signInWithPassword({
+        phone: formattedPhone,
         password: formData.password
       });
 
+      // If phone auth fails, try with email format as fallback
+      if (error && (error.message.includes('email') || error.message.includes('disabled'))) {
+        console.log('Phone auth failed, trying email format...');
+        const emailFormat = `${formData.phone.replace(/\D/g, '')}@taskmaster.app`;
+        
+        const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
+          email: emailFormat,
+          password: formData.password
+        });
+        
+        data = emailData;
+        error = emailError;
+      }
+
       if (error) {
+        console.error('Login error:', error);
+        let errorMessage = "Invalid phone number or password. Please check your credentials.";
+        
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = "Invalid phone number or password. Please check your credentials.";
+        } else if (error.message.includes('Email signups are disabled')) {
+          errorMessage = "Phone authentication is currently disabled. Please contact support.";
+        } else if (error.message.includes('User not found')) {
+          errorMessage = "No account found with this phone number. Please sign up first.";
+        }
+        
         toast({
           title: "Login Failed",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive"
         });
         return;
       }
 
       if (data.user) {
+        // Get user data from localStorage if available
+        const userData = localStorage.getItem('userData');
+        let userName = "User";
+        
+        if (userData) {
+          try {
+            const parsedData = JSON.parse(userData);
+            userName = parsedData.fullName || "User";
+          } catch (e) {
+            console.error('Error parsing user data:', e);
+          }
+        }
+
         toast({
           title: "Login Successful",
-          description: "Welcome back!",
+          description: `Welcome back, ${userName}!`,
         });
-        // Navigate to home screen after successful login
         navigate("/", { replace: true });
       }
     } catch (error) {
+      console.error('Unexpected error:', error);
       toast({
         title: "Login Failed",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -88,13 +146,16 @@ export const Login = () => {
                   <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="tel"
-                    placeholder="Enter your phone number"
+                    placeholder="03XXXXXXXXX"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="pl-10"
                     required
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Enter your phone number (e.g., 03001234567)
+                </p>
               </div>
 
               {/* Password Input */}

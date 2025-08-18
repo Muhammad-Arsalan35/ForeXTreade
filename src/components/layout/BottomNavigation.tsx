@@ -2,7 +2,7 @@ import {
   Home, 
   BarChart3, 
   FileText, 
-  Bell, 
+  Wallet,
   Ticket, 
   MessageCircle, 
   UserPlus, 
@@ -18,8 +18,8 @@ const navItems = [
   { icon: Home, label: "Home", path: "/", badge: null },
   { icon: BarChart3, label: "Record", path: "/records", badge: null },
   { icon: FileText, label: "Financial", path: "/financial", badge: 2 },
-  { icon: Bell, label: "Notices", path: "/notices", badge: 5 },
-  { icon: Ticket, label: "Coupons", path: "/coupons", badge: null },
+  { icon: Wallet, label: "Deposit", path: "/deposit", badge: null },
+  { icon: Ticket, label: "Withdraw", path: "/withdraw", badge: null },
   { icon: MessageCircle, label: "Messages", path: "/messages", badge: 3 },
   { icon: UserPlus, label: "Invite", path: "/invite", badge: null },
   { icon: Calendar, label: "Daily", path: "/daily", badge: null },
@@ -31,8 +31,8 @@ const navItems = [
 export const BottomNavigation = () => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50">
-      <div className="grid grid-cols-6 gap-1 p-2">
-        {navItems.slice(0, 6).map((item) => (
+      <div className="grid grid-cols-7 gap-1 p-2">
+        {navItems.slice(0, 7).map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -59,8 +59,8 @@ export const BottomNavigation = () => {
       </div>
       
       {/* Extended navigation for additional items */}
-      <div className="grid grid-cols-5 gap-1 p-2 pt-0 border-t border-border/50">
-        {navItems.slice(6).map((item) => (
+      <div className="grid grid-cols-4 gap-1 p-2 pt-0 border-t border-border/50">
+        {navItems.slice(7).map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

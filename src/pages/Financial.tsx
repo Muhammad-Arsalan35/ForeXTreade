@@ -116,22 +116,13 @@ const earningsBreakdown = [
   }
 ];
 
-const withdrawalAmounts = [1500, 4000, 11000, 20000, 90000, 250000, 500000];
-
 export const Financial = () => {
-  const [selectedWallet, setSelectedWallet] = useState("income");
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [filterType, setFilterType] = useState("all");
 
   const filteredTransactions = transactionHistory.filter(transaction => {
     if (filterType === "all") return true;
     return transaction.type === filterType;
   });
-
-  const calculateTax = (amount: number) => {
-    // VIP2 employee: 10% tax on income portfolio withdrawals
-    return selectedWallet === "income" ? amount * 0.1 : 0;
-  };
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -183,9 +174,8 @@ export const Financial = () => {
       </Card>
 
       <Tabs defaultValue="transactions" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
-          <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -246,79 +236,6 @@ export const Financial = () => {
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Withdraw Tab */}
-        <TabsContent value="withdraw">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Withdraw Funds</CardTitle>
-              <p className="text-muted-foreground">Process withdrawal from your wallets</p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Wallet Selection */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">Select Wallet</label>
-                <Select value={selectedWallet} onValueChange={setSelectedWallet}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="income">Income Wallet (5,855.00 PKR)</SelectItem>
-                    <SelectItem value="personal">Personal Wallet (0.00 PKR)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Withdrawal Amounts */}
-              <div>
-                <label className="text-sm font-medium mb-3 block">Select Amount (PKR)</label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {withdrawalAmounts.map((amount) => (
-                    <Button
-                      key={amount}
-                      variant={selectedAmount === amount ? "default" : "outline"}
-                      onClick={() => setSelectedAmount(amount)}
-                      className="h-12"
-                    >
-                      {amount.toLocaleString()}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tax Information */}
-              {selectedAmount && (
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Withdrawal Summary</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Amount:</span>
-                      <span>{selectedAmount.toLocaleString()} PKR</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Taxation:</span>
-                      <span>{calculateTax(selectedAmount).toFixed(2)} PKR</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span>You'll receive:</span>
-                      <span>{(selectedAmount - calculateTax(selectedAmount)).toFixed(2)} PKR</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Processing time: 0-72 hours • V-class employees: 10% tax on income portfolio withdrawals
-                  </p>
-                </div>
-              )}
-
-              <Button 
-                className="w-full bg-gradient-golden" 
-                disabled={!selectedAmount}
-              >
-                Process Withdrawal
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>

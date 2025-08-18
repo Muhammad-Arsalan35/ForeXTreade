@@ -27,7 +27,24 @@ export const Signup = () => {
   const [searchParams] = useSearchParams();
   const { referralCode: urlReferralCode } = useParams();
 
-  // Auto-fill referral code from URL (both query param and path param)
+  const formatPhoneNumber = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('0')) {
+      return `+92${cleaned.substring(1)}`;
+    }
+    if (cleaned.startsWith('92')) {
+      return `+${cleaned}`;
+    }
+    if (cleaned.length === 11) {
+      return `+92${cleaned.substring(1)}`;
+    }
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    return `+92${cleaned}`;
+  };
+
+  // Auto-fill referral code from URL
   useEffect(() => {
     const refCode = searchParams.get('ref') || urlReferralCode;
     if (refCode && refCode.length > 0 && !isNaN(Number(refCode))) {
@@ -45,7 +62,6 @@ export const Signup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -67,45 +83,76 @@ export const Signup = () => {
     setLoading(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/`;
-      const phoneRaw = formData.phone.trim().replace(/\s+/g, "");
-      const phoneE164 = phoneRaw.startsWith("+") ? phoneRaw : `+${phoneRaw}`;
+      const formattedPhone = formatPhoneNumber(formData.phone);
       
-      const { data, error } = await supabase.auth.signUp({
-        phone: phoneE164,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            username: formData.username,
-            phone: phoneE164,
-            referral_code: formData.referralCode
-          }
-        }
+      console.log('Attempting signup with:', { 
+        phone: formData.phone, 
+        formattedPhone: formattedPhone,
+        fullName: formData.fullName,
+        username: formData.username,
+        referralCode: formData.referralCode
+      });
+      
+      // Simple signup without custom metadata to avoid database errors
+      let { data, error } = await supabase.auth.signUp({
+        phone: formattedPhone,
+        password: formData.password
       });
 
+      // If phone auth fails, try email format
+      if (error && (error.message.includes('email') || error.message.includes('disabled'))) {
+        console.log('Phone auth failed, trying email format...');
+        const emailFormat = `${formData.phone.replace(/\D/g, '')}@taskmaster.app`;
+        
+        const { data: emailData, error: emailError } = await supabase.auth.signUp({
+          email: emailFormat,
+          password: formData.password
+        });
+        
+        data = emailData;
+        error = emailError;
+      }
+
       if (error) {
+        console.error('Signup error:', error);
+        let errorMessage = "Signup failed. Please try again.";
+        
+        if (error.message.includes('User already registered')) {
+          errorMessage = "An account with this phone number already exists. Please login instead.";
+        } else if (error.message.includes('Email signups are disabled')) {
+          errorMessage = "Phone authentication is currently disabled. Please contact support.";
+        } else if (error.message.includes('Database error')) {
+          errorMessage = "Account created but profile setup failed. Please contact support.";
+        }
+        
         toast({
           title: "Signup Failed",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive"
         });
         return;
       }
 
       if (data.user) {
+        // Store user data in localStorage as backup
+        localStorage.setItem('userData', JSON.stringify({
+          fullName: formData.fullName,
+          username: formData.username,
+          phone: formData.phone,
+          referralCode: formData.referralCode
+        }));
+
         toast({
           title: "Success!",
           description: "Account created successfully. You can now login.",
         });
-        
-        // Navigate to home screen after successful signup
         navigate("/", { replace: true });
       }
     } catch (error) {
+      console.error('Unexpected error:', error);
       toast({
         title: "Signup Failed",
-        description: "An unexpected error occurred",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -157,13 +204,16 @@ export const Signup = () => {
                   <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="tel"
-                    placeholder="Enter your phone number"
+                    placeholder="03XXXXXXXXX"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="pl-10"
                     required
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Enter your phone number (e.g., 03001234567)
+                </p>
               </div>
 
               {/* Username Input */}

@@ -1,4 +1,4 @@
-import { Bell, Search, Menu, LogOut } from "lucide-react";
+import { Bell, Search, Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +27,7 @@ export const TopHeader = () => {
       });
     }
   };
+
   return (
     <header className="bg-gradient-primary border-b border-border sticky top-0 z-50 shadow-elegant">
       <div className="container mx-auto px-4 py-3">
@@ -52,11 +53,18 @@ export const TopHeader = () => {
             </Button>
             
             <div className="flex items-center space-x-2">
-              <img 
-                src={userAvatar} 
-                alt="User Avatar" 
-                className="w-8 h-8 rounded-full border-2 border-primary-foreground/20"
-              />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/profile')}
+                className="text-primary-foreground p-0 h-auto"
+              >
+                <img 
+                  src={userAvatar} 
+                  alt="User Avatar" 
+                  className="w-8 h-8 rounded-full border-2 border-primary-foreground/20 cursor-pointer hover:border-primary-foreground/40 transition-colors"
+                />
+              </Button>
               <div className="text-primary-foreground text-sm">
                 <p className="font-medium">John Doe</p>
                 <p className="text-xs opacity-75">VIP Level 2</p>
