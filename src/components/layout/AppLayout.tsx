@@ -43,6 +43,13 @@ export const AppLayout = () => {
     }
   }, [user, isAuthPage, navigate, loading]);
 
+  // Redirect to dashboard if authenticated and on root
+  useEffect(() => {
+    if (!loading && user && location.pathname === '/') {
+      navigate('/dashboard');
+    }
+  }, [user, loading, location.pathname, navigate]);
+
   if (isAuthPage) {
     return <Outlet />;
   }

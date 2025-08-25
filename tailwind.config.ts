@@ -18,6 +18,9 @@ export default {
 			}
 		},
 		extend: {
+			screens: {
+				'xs': '475px',
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -71,7 +74,8 @@ export default {
 				'gradient-primary': 'var(--gradient-primary)',
 				'gradient-golden': 'var(--gradient-golden)',
 				'gradient-vip': 'var(--gradient-vip)',
-				'gradient-success': 'var(--gradient-success)'
+				'gradient-success': 'var(--gradient-success)',
+				'gradient-cash': 'var(--gradient-cash)'
 			},
 			boxShadow: {
 				'golden': 'var(--shadow-golden)',
@@ -103,13 +107,50 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'float': {
+					'0%, 100%': {
+						transform: 'translateY(0px) rotate(0deg)'
+					},
+					'50%': {
+						transform: 'translateY(-20px) rotate(10deg)'
+					}
+				},
+				'shimmer': {
+					'0%': {
+						backgroundPosition: '-200px 0'
+					},
+					'100%': {
+						backgroundPosition: 'calc(200px + 100%) 0'
+					}
+				},
+				'pulse-gold': {
+					'0%, 100%': {
+						boxShadow: '0 0 20px rgba(223, 188, 30, 0.3)'
+					},
+					'50%': {
+						boxShadow: '0 0 30px rgba(223, 188, 30, 0.6)'
+					}
+				},
+				'bounce-gold': {
+					'0%, 100%': {
+						transform: 'translateY(0)'
+					},
+					'50%': {
+						transform: 'translateY(-5px)'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'float': 'float 6s ease-in-out infinite',
+				'shimmer': 'shimmer 2s infinite',
+				'pulse-gold': 'pulse-gold 2s ease-in-out infinite',
+				'bounce-gold': 'bounce-gold 2s ease-in-out infinite'
 			}
 		}
 	},
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	plugins: [require("tailwindcss-animate")],
 } satisfies Config;

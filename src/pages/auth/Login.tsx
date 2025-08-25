@@ -104,7 +104,7 @@ export const Login = () => {
           title: "Login Successful",
           description: `Welcome back, ${userName}!`,
         });
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       console.error('Unexpected error:', error);

@@ -2,40 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Golden/Brown Task Management Design System */
+/* Professional Cash Money Theme Design System */
 
 @layer base {
   :root {
-    /* Base Colors */
-    --background: 43 30% 97%;
-    --foreground: 25 85% 15%;
+    /* Base Colors - Professional Theme */
+    --background: 220 13% 18%; /* Dark blue-gray */
+    --foreground: 45 93% 47%; /* Bright gold */
 
     /* Card System */
-    --card: 43 40% 99%;
-    --card-foreground: 25 85% 15%;
+    --card: 220 13% 22%;
+    --card-foreground: 45 93% 47%;
 
     /* Popover */
-    --popover: 43 40% 99%;
-    --popover-foreground: 25 85% 15%;
+    --popover: 220 13% 22%;
+    --popover-foreground: 45 93% 47%;
 
-    /* Golden Primary Palette */
-    --primary: 43 74% 49%;
-    --primary-foreground: 43 5% 95%;
-    --primary-glow: 43 84% 65%;
-    --primary-deep: 43 65% 35%;
+    /* Primary Palette - Rich Gold */
+    --primary: 45 93% 47%; /* #F4D03F */
+    --primary-foreground: 220 13% 18%;
+    --primary-glow: 45 93% 57%;
+    --primary-deep: 45 93% 37%;
 
-    /* Secondary Brown Palette */
-    --secondary: 25 45% 85%;
-    --secondary-foreground: 25 85% 15%;
-    --secondary-deep: 25 65% 65%;
+    /* Secondary Blue Palette */
+    --secondary: 220 100% 35%; /* Dark blue #1E3A8A */
+    --secondary-foreground: 45 93% 47%;
+    --secondary-deep: 220 100% 25%;
 
     /* Muted Tones */
-    --muted: 43 20% 92%;
-    --muted-foreground: 25 25% 45%;
+    --muted: 220 13% 25%;
+    --muted-foreground: 45 93% 67%;
 
     /* Accent Gold */
-    --accent: 43 85% 75%;
-    --accent-foreground: 25 85% 15%;
+    --accent: 45 93% 67%;
+    --accent-foreground: 220 13% 18%;
 
     /* Success Green */
     --success: 142 76% 36%;
@@ -46,27 +46,28 @@
     --destructive-foreground: 0 0% 100%;
 
     /* Border & Input */
-    --border: 43 25% 88%;
-    --input: 43 25% 88%;
-    --ring: 43 74% 49%;
+    --border: 220 13% 30%;
+    --input: 220 13% 30%;
+    --ring: 45 93% 47%;
 
     /* VIP System Colors */
     --vip-bronze: 30 65% 55%;
     --vip-silver: 0 0% 75%;
-    --vip-gold: 43 85% 65%;
+    --vip-gold: 45 93% 47%;
     --vip-platinum: 240 15% 85%;
     --vip-diamond: 200 85% 75%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    --gradient-golden: linear-gradient(135deg, hsl(43 85% 65%), hsl(43 74% 49%));
-    --gradient-vip: linear-gradient(135deg, hsl(var(--vip-gold)), hsl(var(--vip-bronze)));
+    --gradient-primary: linear-gradient(135deg, hsl(45 93% 47%), hsl(45 93% 57%));
+    --gradient-golden: linear-gradient(135deg, hsl(45 93% 57%), hsl(45 93% 47%));
+    --gradient-vip: linear-gradient(135deg, hsl(45 93% 47%), hsl(220 100% 35%));
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 86% 46%));
+    --gradient-cash: linear-gradient(135deg, hsl(45 93% 47%), hsl(220 100% 35%));
 
     /* Shadows */
-    --shadow-golden: 0 4px 20px hsl(43 74% 49% / 0.15);
-    --shadow-elegant: 0 8px 32px hsl(25 45% 25% / 0.1);
-    --shadow-card: 0 2px 8px hsl(25 25% 25% / 0.08);
+    --shadow-golden: 0 4px 20px hsl(45 93% 47% / 0.2);
+    --shadow-elegant: 0 8px 32px hsl(220 13% 18% / 0.15);
+    --shadow-card: 0 2px 8px hsl(220 13% 18% / 0.1);
 
     /* Animation Variables */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -74,59 +75,53 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 13% 22%;
+    --sidebar-foreground: 45 93% 47%;
+    --sidebar-primary: 45 93% 47%;
+    --sidebar-primary-foreground: 220 13% 18%;
+    --sidebar-accent: 220 100% 35%;
+    --sidebar-accent-foreground: 45 93% 47%;
+    --sidebar-border: 220 13% 30%;
+    --sidebar-ring: 45 93% 47%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 220 13% 18%;
+    --foreground: 45 93% 47%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 13% 22%;
+    --card-foreground: 45 93% 47%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 13% 22%;
+    --popover-foreground: 45 93% 47%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 45 93% 47%;
+    --primary-foreground: 220 13% 18%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 100% 35%;
+    --secondary-foreground: 45 93% 47%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 13% 25%;
+    --muted-foreground: 45 93% 67%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 45 93% 67%;
+    --accent-foreground: 220 13% 18%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 45 93% 47%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 220 13% 30%;
+    --input: 220 13% 30%;
+    --ring: 45 93% 47%;
+    
+    --sidebar-background: 220 13% 22%;
+    --sidebar-foreground: 45 93% 47%;
+    --sidebar-primary: 45 93% 47%;
+    --sidebar-primary-foreground: 220 13% 18%;
+    --sidebar-accent: 220 100% 35%;
+    --sidebar-accent-foreground: 45 93% 47%;
+    --sidebar-border: 220 13% 30%;
+    --sidebar-ring: 45 93% 47%;
   }
 }
 
@@ -137,5 +132,160 @@
 
   body {
     @apply bg-background text-foreground;
+    background-image: 
+      radial-gradient(circle at 20% 80%, rgba(244, 208, 63, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(30, 58, 138, 0.05) 0%, transparent 50%);
+    background-attachment: fixed;
+    position: relative;
+  }
+
+  /* Subtle Background Pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23F4D03F' fill-opacity='0.02'%3E%3Cpath d='M30 30c0-11.046-8.954-20-20-20s-20 8.954-20 20 8.954 20 20 20 20-8.954 20-20zm0 0c0 11.046 8.954 20 20 20s20-8.954 20-20-8.954-20-20-20-20 8.954-20 20z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: -2;
+  }
+
+  /* Floating Money Elements */
+  body::after {
+    content: '💰💵💲📱📈💎💰💵💲📱📈💎';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 2rem;
+    opacity: 0.05;
+    z-index: -1;
+    pointer-events: none;
+    animation: moveBackground 60s linear infinite;
+    white-space: nowrap;
+    overflow: hidden;
   }
 }
+
+/* Custom breakpoint for extra small screens */
+@layer utilities {
+  @media (min-width: 475px) {
+    .xs\:grid-cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+}
+
+/* Subtle Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(244, 208, 63, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(244, 208, 63, 0.4);
+  }
+}
+
+@keyframes bounce-gold {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Moving Background Animations */
+@keyframes moveBackground {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+@keyframes floatRight {
+  0% {
+    transform: translateX(-100px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.1;
+  }
+  90% {
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateX(calc(100vw + 100px)) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Custom Animation Classes */
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(244, 208, 63, 0.1), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 3s infinite;
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 3s ease-in-out infinite;
+}
+
+.animate-bounce-gold {
+  animation: bounce-gold 2s ease-in-out infinite;
+}
+
+/* Hover Effects */
+.hover-glow:hover {
+  box-shadow: 0 0 15px rgba(244, 208, 63, 0.3);
+  transition: all 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+  transition: all 0.3s ease;
+}
+
+/* Card Enhancements */
+.card-golden {
+  background: linear-gradient(135deg, hsl(220 13% 22%), hsl(220 13% 26%));
+  border: 1px solid rgba(244, 208, 63, 0.15);
+  box-shadow: 0 4px 20px rgba(220, 13, 18, 0.1);
+}
+
+.card-golden:hover {
+  border-color: rgba(244, 208, 63, 0.3);
+  box-shadow: 0 8px 30px rgba(244, 208, 63, 0.15);
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
+}
+
+/* Floating Money Elements */
+.floating-money {
+  position: absolute;
+  font-size: 2rem;
+  opacity: 0.1;
+  animation: floatRight 20s linear infinite;
+}
+
+.floating-money:nth-child(1) { animation-duration: 20s; animation-delay: 0s; }
+.floating-money:nth-child(2) { animation-duration: 25s; animation-delay: -5s; }
+.floating-money:nth-child(3) { animation-duration: 30s; animation-delay: -10s; }
+.floating-money:nth-child(4) { animation-duration: 22s; animation-delay: -15s; }
+.floating-money:nth-child(5) { animation-duration: 28s; animation-delay: -8s; }
+.floating-money:nth-child(6) { animation-duration: 35s; animation-delay: -12s; }

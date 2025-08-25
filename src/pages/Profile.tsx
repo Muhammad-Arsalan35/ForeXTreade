@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, User, Phone, Crown, Wallet, Users } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Phone, 
+  Crown, 
+  Wallet, 
+  Users, 
+  MessageCircle, 
+  BookOpen, 
+  Download, 
+  LogOut,
+  UserCheck,
+  BarChart3
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +37,8 @@ interface UserProfile {
   position_title: string | null;
   created_at: string | null;
 }
+
+
 
 export const Profile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -68,167 +82,229 @@ export const Profile = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-primary flex items-center justify-center">
-        <div className="text-primary-foreground text-lg">Loading profile...</div>
-      </div>
-    );
-  }
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
 
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-gradient-primary flex items-center justify-center">
-        <div className="text-primary-foreground text-lg">Profile not found</div>
-      </div>
-    );
-  }
+  const handleWhatsAppContact = () => {
+    const phoneNumber = "+923001234567"; // Replace with actual support number
+    const message = "Hello! I need 24/7 support assistance.";
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleHiringManagerContact = () => {
+    const phoneNumber = "+923001234568"; // Replace with actual hiring manager number
+    const message = "Hello! I would like to discuss hiring opportunities.";
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-primary p-4">
+    <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6 pt-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="p-0 h-auto">
-          <ArrowLeft className="w-5 h-5 text-primary-foreground" />
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(-1)}
+          className="text-primary hover:bg-primary/10"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
         </Button>
-        <h1 className="text-xl font-bold text-primary-foreground">Profile</h1>
+        <h1 className="text-2xl font-bold text-primary">Profile</h1>
+        <div className="w-10"></div>
       </div>
 
-      <div className="max-w-md mx-auto space-y-6">
-        {/* Profile Header */}
-        <Card className="shadow-elegant">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      ) : profile ? (
+        <>
+          {/* User Info Card */}
+          <Card className="card-golden hover-glow">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <Avatar className="w-20 h-20 border-4 border-primary/30">
+                  <AvatarImage src={profile.profile_avatar || undefined} />
+                  <AvatarFallback className="bg-gradient-cash text-primary-foreground text-2xl">
+                    {profile.full_name?.charAt(0) || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-primary">{profile.full_name || 'User'}</h2>
+                  <p className="text-muted-foreground flex items-center gap-2">
+                    📱 {profile.phone_number || 'No phone number'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge className="bg-gradient-cash text-primary-foreground">
+                      {profile.vip_level || 'VIP1'} {profile.position_title || 'General Employee'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Wallet Balances */}
+          <Card className="card-golden hover-scale">
+            <CardHeader>
+              <CardTitle className="text-primary flex items-center gap-2">
+                💰 Wallet Balances
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-gradient-cash rounded-lg text-primary-foreground">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm opacity-90">Income Wallet</p>
+                      <p className="text-2xl font-bold">
+                        PKR {profile.income_wallet_balance?.toLocaleString() || '0.00'}
+                      </p>
+                    </div>
+                    <Wallet className="w-8 h-8" />
+                  </div>
+                </div>
+                <div className="p-4 bg-gradient-cash rounded-lg text-primary-foreground">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm opacity-90">Personal Wallet</p>
+                      <p className="text-2xl font-bold">
+                        PKR {profile.personal_wallet_balance?.toLocaleString() || '0.00'}
+                      </p>
+                    </div>
+                    <Wallet className="w-8 h-8" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border border-primary/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Total Earnings</p>
+                  <p className="text-xl font-bold text-primary">
+                    PKR {profile.total_earnings?.toLocaleString() || '0.00'}
+                  </p>
+                </div>
+                <div className="p-4 border border-primary/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Total Invested</p>
+                  <p className="text-xl font-bold text-primary">
+                    PKR {profile.total_invested?.toLocaleString() || '0.00'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contact Information */}
+          <Card className="card-golden hover-scale">
+            <CardHeader>
+              <CardTitle className="text-primary">Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
+                <div className="flex items-center gap-3">
+                  <UserCheck className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-primary">Hiring Manager</p>
+                    <p className="text-sm text-muted-foreground">Contact your manager for support</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleHiringManagerContact}
+                  className="border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                >
+                  Contact
+                </Button>
+              </div>
+              <div className="flex items-center justify-between p-4 border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-primary">24/7 WhatsApp Support</p>
+                    <p className="text-sm text-muted-foreground">Get instant help anytime</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleWhatsAppContact}
+                  className="border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                >
+                  Chat Now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card className="card-golden hover-scale">
+            <CardHeader>
+              <CardTitle className="text-primary">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                  onClick={() => navigate('/dashboard/messages')}
+                >
+                  <MessageCircle className="w-6 h-6" />
+                  <span className="text-sm">Messages</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                  onClick={() => navigate('/dashboard/handbook')}
+                >
+                  <BookOpen className="w-6 h-6" />
+                  <span className="text-sm">Profits Plan</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                  onClick={() => navigate('/dashboard/download')}
+                >
+                  <Download className="w-6 h-6" />
+                  <span className="text-sm">Download</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-primary/30 text-primary hover:bg-primary/10 hover-scale"
+                  onClick={() => navigate('/dashboard/records')}
+                >
+                  <BarChart3 className="w-6 h-6" />
+                  <span className="text-sm">Records</span>
+                </Button>
+              </div>
+              <div className="mt-6">
+                <Button
+                  variant="destructive"
+                  className="w-full h-12 bg-red-600 hover:bg-red-700 hover-scale"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="w-5 h-5 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card className="card-golden">
           <CardContent className="p-6 text-center">
-            <div className="relative mb-4">
-              <Avatar className="w-24 h-24 mx-auto">
-                <AvatarImage src={profile.profile_avatar || undefined} />
-                <AvatarFallback className="text-2xl bg-gradient-golden text-primary-foreground">
-                  {profile.full_name?.charAt(0) || 'U'}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            
-            <h2 className="text-xl font-bold mb-2">{profile.full_name}</h2>
-            <p className="text-muted-foreground mb-3">@{profile.username}</p>
-            
-            <div className="flex items-center justify-center gap-2 mb-4">
-              {profile.vip_level && (
-                <Badge variant="secondary" className="bg-gradient-golden text-primary-foreground">
-                  <Crown className="w-3 h-3 mr-1" />
-                  {profile.vip_level}
-                </Badge>
-              )}
-              {profile.position_title && (
-                <Badge variant="outline">{profile.position_title}</Badge>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-center">
-                <p className="text-muted-foreground">Total Earnings</p>
-                <p className="font-bold text-success">
-                  PKR {profile.total_earnings?.toLocaleString() || '0'}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-muted-foreground">Total Invested</p>
-                <p className="font-bold text-primary">
-                  PKR {profile.total_invested?.toLocaleString() || '0'}
-                </p>
-              </div>
-            </div>
+            <p className="text-muted-foreground">Failed to load profile</p>
           </CardContent>
         </Card>
-
-        {/* Profile Details */}
-        <Card className="shadow-elegant">
-          <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Full Name
-              </label>
-              <p className="text-sm p-2 bg-muted rounded">{profile.full_name}</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Username
-              </label>
-              <p className="text-sm p-2 bg-muted rounded">@{profile.username}</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Phone Number
-              </label>
-              <p className="text-sm p-2 bg-muted rounded">{profile.phone_number}</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Position Title
-              </label>
-              <p className="text-sm p-2 bg-muted rounded">{profile.position_title || 'Not specified'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Details */}
-        <Card className="shadow-elegant">
-          <CardHeader>
-            <CardTitle>Account Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Referral Code</span>
-              <Badge variant="outline" className="font-mono">{profile.referral_code}</Badge>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Referral Level</span>
-              <Badge variant="secondary">{profile.referral_level || 'None'}</Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Member Since</span>
-              <span className="text-sm">
-                {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Wallet Information */}
-        <Card className="shadow-elegant">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5" />
-              Wallet Balances
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Income Wallet</span>
-              <span className="font-bold text-success">
-                PKR {profile.income_wallet_balance?.toLocaleString() || '0'}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Personal Wallet</span>
-              <span className="font-bold text-primary">
-                PKR {profile.personal_wallet_balance?.toLocaleString() || '0'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 };

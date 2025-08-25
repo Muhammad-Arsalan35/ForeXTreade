@@ -146,7 +146,7 @@ export const Signup = () => {
           title: "Success!",
           description: "Account created successfully. You can now login.",
         });
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       console.error('Unexpected error:', error);
