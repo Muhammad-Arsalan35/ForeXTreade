@@ -260,3 +260,4 @@ FROM user_profiles WHERE user_id = 'user-uuid-here';
 
 For technical support or questions about the referral system implementation, please refer to the codebase documentation or contact the development team.
 
+
