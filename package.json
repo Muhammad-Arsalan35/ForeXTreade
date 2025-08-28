@@ -11,7 +11,8 @@
     "server": "node backend/server.js",
     "server:dev": "nodemon backend/server.js",
     "db:migrate": "node backend/database/migrate.js",
-    "db:seed": "node backend/database/seed.js"
+    "db:seed": "node backend/database/seed.js",
+    "admin:promote": "node backend/tools/promoteAdmin.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

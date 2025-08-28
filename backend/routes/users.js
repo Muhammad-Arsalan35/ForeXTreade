@@ -12,7 +12,7 @@ const updateProfileSchema = Joi.object({
 });
 
 const joinPlanSchema = Joi.object({
-  plan_id: Joi.number().required(),
+  plan_id: Joi.string().uuid().required(),
   amount: Joi.number().positive().required()
 });
 
@@ -202,7 +202,7 @@ router.post('/join-plan', async (req, res) => {
 
     // Get plan details
     const plan = await getRow(
-      'SELECT * FROM vip_levels WHERE id = $1',
+      'SELECT * FROM membership_plans WHERE id = $1',
       [plan_id]
     );
 
@@ -242,10 +242,10 @@ router.post('/join-plan', async (req, res) => {
       );
 
       // Update user's VIP level if investment meets requirement
-      if (amount >= plan.deposit_requirement) {
+      if (amount >= plan.price) {
         await query(
           'UPDATE users SET vip_level = $1 WHERE id = $2',
-          [plan.level_name, req.user.id]
+          [plan.name, req.user.id]
         );
       }
 
@@ -259,7 +259,7 @@ router.post('/join-plan', async (req, res) => {
 
       res.json({
         success: true,
-        message: `Successfully joined ${plan.level_name} plan`,
+        message: `Successfully joined ${plan.name} plan`,
         data: {
           new_balance: updatedUser.personal_wallet_balance,
           total_invested: updatedUser.total_invested,

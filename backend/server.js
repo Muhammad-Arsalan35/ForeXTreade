@@ -17,9 +17,12 @@ import taskRoutes from './routes/tasks.js';
 import vipRoutes from './routes/vip.js';
 import financialRoutes from './routes/financial.js';
 import inviteRoutes from './routes/invites.js';
+import referralRoutes from './routes/referrals.js';
+import videoRoutes from './routes/videos.js';
+import adminRoutes from './routes/admin.js';
 
 // Import middleware
-import { authenticateToken } from './middleware/auth.js';
+import { authenticateToken, verifyAdmin } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 // Import database connection
@@ -100,6 +103,9 @@ app.use('/api/tasks', authenticateToken, taskRoutes);
 app.use('/api/vip', authenticateToken, vipRoutes);
 app.use('/api/financial', authenticateToken, financialRoutes);
 app.use('/api/invites', authenticateToken, inviteRoutes);
+app.use('/api/referrals', authenticateToken, referralRoutes);
+app.use('/api/videos', authenticateToken, videoRoutes);
+app.use('/api/admin', authenticateToken, verifyAdmin, adminRoutes);
 
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {

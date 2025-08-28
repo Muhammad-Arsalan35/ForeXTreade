@@ -1,8 +1,13 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Load env from backend/.env explicitly so scripts run from project root still pick it up
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Database configuration
 const pool = new Pool({

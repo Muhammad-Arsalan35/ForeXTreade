@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import Joi from 'joi';
+import jwt from 'jsonwebtoken';
 import { query, getRow } from '../database/connection.js';
 import { generateToken } from '../middleware/auth.js';
 
@@ -19,7 +20,7 @@ const signupSchema = Joi.object({
 });
 
 const loginSchema = Joi.object({
-  email: Joi.string().email().required(),
+  identifier: Joi.string().required(), // email or phone
   password: Joi.string().required()
 });
 
@@ -77,6 +78,28 @@ router.post('/signup', async (req, res) => {
 
     const user = result.rows[0];
 
+    // Create user profile
+    await query(
+      `INSERT INTO user_profiles (
+        user_id, full_name, username, phone_number, membership_type, 
+        is_trial_active, trial_start_date, trial_end_date, total_earnings,
+        videos_watched_today, last_video_reset_date, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      [
+        user.id, 
+        full_name, 
+        full_name.toLowerCase().replace(/\s+/g, ''), // username from full name
+        phone_number, 
+        'free', // membership_type
+        true, // is_trial_active
+        new Date().toISOString().split('T')[0], // trial_start_date
+        new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days trial
+        0, // total_earnings
+        0, // videos_watched_today
+        new Date().toISOString().split('T')[0] // last_video_reset_date
+      ]
+    );
+
     // Handle referral if provided
     if (referral_code) {
       const referrer = await getRow(
@@ -84,11 +107,41 @@ router.post('/signup', async (req, res) => {
         [referral_code]
       );
 
-      if (referrer) {
+      if (referrer && referrer.id !== user.id) {
+        // Create A-level referral
         await query(
-          'INSERT INTO referrals (referrer_id, referred_id, created_at) VALUES ($1, $2, NOW())',
+          'INSERT INTO referrals (parent_user_id, child_user_id, level) VALUES ($1, $2, $3)',
+          [referrer.id, user.id, 'A']
+        );
+
+        // Update user's referred_by field
+        await query(
+          'UPDATE users SET referred_by = $1 WHERE id = $2',
           [referrer.id, user.id]
         );
+
+        // Create B, C, D level referrals by walking up the tree
+        const createMultiLevelReferrals = async (parentId, childId, currentLevel) => {
+          if (currentLevel === 'D') return; // Stop at D level
+
+          const grandParent = await getRow(
+            'SELECT parent_user_id FROM referrals WHERE child_user_id = $1',
+            [parentId]
+          );
+
+          if (grandParent) {
+            const nextLevel = currentLevel === 'A' ? 'B' : currentLevel === 'B' ? 'C' : 'D';
+            await query(
+              'INSERT INTO referrals (parent_user_id, child_user_id, level) VALUES ($1, $2, $3)',
+              [grandParent.parent_user_id, childId, nextLevel]
+            );
+            
+            // Recursively create next level
+            await createMultiLevelReferrals(grandParent.parent_user_id, childId, nextLevel);
+          }
+        };
+
+        await createMultiLevelReferrals(referrer.id, user.id, 'A');
       }
     }
 
@@ -134,12 +187,16 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const { email, password } = value;
+    const { identifier, password } = value;
 
-    // Get user
+    // Determine if identifier is email or phone
+    const isEmail = /@/.test(identifier);
+    const whereClause = isEmail ? 'email = $1' : 'phone_number = $1';
+
+    // Get user by email or phone
     const user = await getRow(
-      'SELECT id, full_name, email, phone_number, password_hash, referral_code, position_title, vip_level, is_active FROM users WHERE email = $1',
-      [email]
+      `SELECT id, full_name, email, phone_number, password_hash, referral_code, position_title, vip_level, is_active FROM users WHERE ${whereClause}`,
+      [identifier]
     );
 
     if (!user) {
@@ -313,7 +370,6 @@ router.get('/verify', async (req, res) => {
       });
     }
 
-    const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     const user = await getRow(

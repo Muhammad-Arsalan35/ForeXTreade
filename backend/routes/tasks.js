@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Validation schemas
 const completeTaskSchema = Joi.object({
-  task_id: Joi.number().required(),
+  task_id: Joi.string().uuid().required(),
   completion_time: Joi.number().optional()
 });
 
@@ -93,7 +93,7 @@ router.post('/:id/complete', async (req, res) => {
 
     // Get VIP level details
     const vipLevel = await getRow(
-      'SELECT * FROM vip_levels WHERE level_name = $1',
+      'SELECT * FROM membership_plans WHERE name = $1',
       [currentUser.vip_level]
     );
 
@@ -126,10 +126,7 @@ router.post('/:id/complete', async (req, res) => {
     }
 
     // Calculate reward based on VIP level
-    const rewardRange = vipLevel.earning_range.split('-');
-    const minReward = parseFloat(rewardRange[0]);
-    const maxReward = parseFloat(rewardRange[1]);
-    const reward = Math.floor(Math.random() * (maxReward - minReward + 1)) + minReward;
+    const reward = Number(vipLevel.unit_price);
 
     // Start transaction
     await query('BEGIN');

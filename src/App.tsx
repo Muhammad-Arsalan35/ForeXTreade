@@ -23,6 +23,7 @@ import { Plans } from "./pages/Plans";
 import { Referrals } from "./pages/Referrals";
 import NotFound from "./pages/NotFound";
 import { Logout } from "./pages/auth/Logout";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="handbook" element={<Handbook />} />
             <Route path="download" element={<Download />} />
             <Route path="logout" element={<Logout />} />
+            <Route path="admin" element={<Admin />} />
           </Route>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
