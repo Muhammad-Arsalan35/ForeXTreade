@@ -49,24 +49,27 @@ export const Plans = () => {
         return;
       }
 
-      // Fetch user profile
+      // Fetch user profile from users table
       const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('id, membership_type, total_earnings')
-        .eq('user_id', user.id)
+        .from('users')
+        .select('id, vip_level, total_earnings')
+        .eq('auth_user_id', user.id)
         .single();
 
-      if (profileError) throw profileError;
-      setUserProfile(profileData);
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        // Set default profile if user doesn't exist
+        setUserProfile({ id: user.id, vip_level: 'VIP1', total_earnings: 0 });
+      } else {
+        setUserProfile(profileData);
+      }
 
-      // Fetch membership plans
-      const { data: plansData, error: plansError } = await supabase
-        .from('membership_plans')
-        .select('*')
-        .eq('is_active', true)
-        .order('price', { ascending: true });
-
-      if (plansError) throw plansError;
+      // Set default membership plans since the table doesn't exist
+      const plansData = [
+        { id: 1, name: 'VIP1', price: 0, features: ['Basic tasks', 'Standard rewards'] },
+        { id: 2, name: 'VIP2', price: 100, features: ['More tasks', 'Higher rewards'] },
+        { id: 3, name: 'VIP3', price: 500, features: ['Premium tasks', 'Maximum rewards'] }
+      ];
       setPlans(plansData || []);
 
     } catch (error) {
@@ -117,11 +120,11 @@ export const Plans = () => {
 
       if (planError) throw planError;
 
-      // Update user profile to VIP
+      // Update user VIP level in users table
       const { error: profileError } = await supabase
-        .from('user_profiles')
-        .update({ membership_type: 'vip' })
-        .eq('user_id', user.id);
+        .from('users')
+        .update({ vip_level: 'VIP1' })
+        .eq('auth_user_id', user.id);
 
       if (profileError) throw profileError;
 

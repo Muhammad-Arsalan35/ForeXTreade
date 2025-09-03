@@ -56,7 +56,7 @@ export const TopHeader = () => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate('/dashboard/profile')}
                 className="text-primary-foreground p-0 h-auto hover:bg-primary/20 hover-scale"
               >
                 <img 

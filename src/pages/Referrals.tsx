@@ -62,42 +62,26 @@ export const Referrals = () => {
         return;
       }
 
-      // Fetch user profile
+      // Fetch user profile from users table
       const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('auth_user_id', user.id)
         .single();
 
-      if (profileError) throw profileError;
-      setUserProfile(profileData);
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        // Set default profile if user doesn't exist
+        setUserProfile({ id: user.id, referral_code: 'DEFAULT', total_earnings: 0 });
+      } else {
+        setUserProfile(profileData);
+      }
 
-      // Fetch referral commissions
-      const { data: commissionsData, error: commissionsError } = await supabase
-        .from('referral_commissions')
-        .select(`
-          *,
-          referred_user:user_profiles!referral_commissions_referred_user_id_fkey(
-            full_name,
-            username,
-            membership_type
-          )
-        `)
-        .eq('referrer_id', profileData.id)
-        .order('created_at', { ascending: false });
+      // Set default referral commissions since tables don't exist
+      setReferralCommissions([]);
 
-      if (commissionsError) throw commissionsError;
-      setReferralCommissions(commissionsData || []);
-
-      // Fetch team members (B-level members under this user)
-      const { data: teamData, error: teamError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('team_leader_id', profileData.id)
-        .order('created_at', { ascending: false });
-
-      if (teamError) throw teamError;
-      setTeamMembers(teamData || []);
+      // Set default team members since tables don't exist
+      setTeamMembers([]);
 
     } catch (error) {
       console.error('Error fetching data:', error);

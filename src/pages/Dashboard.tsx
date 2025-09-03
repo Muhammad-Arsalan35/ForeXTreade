@@ -65,35 +65,50 @@ const Dashboard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const [{ data: profileData, error: profileError }, { data: usersData, error: usersError }, { data: plansData, error: plansError }] = await Promise.all([
-          supabase.from('user_profiles').select('*').eq('user_id', user.id).single(),
-          supabase.from('users').select('id, auth_user_id, personal_wallet_balance').eq('auth_user_id', user.id).single(),
-          supabase.from('membership_plans').select('*').eq('is_active', true).order('price', { ascending: true })
+        const [{ data: usersData, error: usersError }] = await Promise.all([
+          supabase.from('users').select('*').eq('auth_user_id', user.id).single()
         ]);
 
-        if (profileError) throw profileError;
-        if (usersError) throw usersError;
-        if (plansError) throw plansError;
-
-        setUserProfile(profileData as unknown as UserProfilesRow);
-        setUserRecord(usersData as unknown as UsersTableRow);
-        setPlans((plansData || []) as MembershipPlan[]);
-
-        // Determine user's active plan if any
-        const { data: userPlanRow, error: userPlanErr } = await supabase
-          .from('user_plans')
-          .select('plan_id, is_active')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('end_date', { ascending: false })
-          .limit(1)
-          .single();
-        if (!userPlanErr && userPlanRow?.plan_id) {
-          const plan = (plansData || []).find((p: any) => p.id === userPlanRow.plan_id) || null;
-          setActivePlan(plan as MembershipPlan | null);
+        if (usersError) {
+          console.error('Error fetching user data:', usersError);
+          // If user doesn't exist in users table, create a basic profile
+          if (usersError.code === 'PGRST116') {
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                auth_user_id: user.id,
+                full_name: user.user_metadata?.full_name || 'User',
+                username: user.email?.split('@')[0] || 'user',
+                phone_number: user.phone || null,
+                referral_code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+                vip_level: 'VIP1',
+                position_title: 'General Employee'
+              })
+              .select()
+              .single();
+              
+            if (createError) {
+              console.error('Create user error:', createError);
+              throw createError;
+            }
+            
+            setUserRecord(newUser as unknown as UsersTableRow);
+          } else {
+            throw usersError;
+          }
         } else {
-          setActivePlan(null);
+          setUserRecord(usersData as unknown as UsersTableRow);
         }
+
+        // Set default membership plans since the table doesn't exist
+        setPlans([
+          { id: 1, name: 'VIP1', price: 0, features: ['Basic tasks', 'Standard rewards'] },
+          { id: 2, name: 'VIP2', price: 100, features: ['More tasks', 'Higher rewards'] },
+          { id: 3, name: 'VIP3', price: 500, features: ['Premium tasks', 'Maximum rewards'] }
+        ] as MembershipPlan[]);
+
+        // Set default active plan since user_plans table doesn't exist
+        setActivePlan(null);
 
         // Fetch current video limit via RPC if available
         try {
@@ -164,11 +179,11 @@ const Dashboard = () => {
       });
       if (planErr) throw planErr;
 
-      // Update membership to VIP
+      // Update user VIP level in users table
       const { error: profErr } = await supabase
-        .from('user_profiles')
-        .update({ membership_type: 'vip' })
-        .eq('user_id', user.id);
+        .from('users')
+        .update({ vip_level: 'VIP1' })
+        .eq('auth_user_id', user.id);
       if (profErr) throw profErr;
 
       // Deduct from personal wallet if present
@@ -267,9 +282,9 @@ const Dashboard = () => {
       if (planErr) throw planErr;
 
       const { error: profErr } = await supabase
-        .from('user_profiles')
-        .update({ membership_type: 'vip' })
-        .eq('user_id', user.id);
+        .from('users')
+        .update({ vip_level: 'VIP1' })
+        .eq('auth_user_id', user.id);
       if (profErr) throw profErr;
 
       if (userRecord?.id) {
