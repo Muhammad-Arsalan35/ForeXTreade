@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   CreditCard, 
   ArrowUpRight, 
   ArrowDownLeft,
   Filter,
   Calendar,
-  Search
+  Search,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,91 +14,191 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-const rechargeRecords = [
-  {
-    id: "RC001",
-    amount: "20.00",
-    date: "05/08/2025 14:30:25",
-    method: "Bank Transfer",
-    status: "Success",
-    reference: "BT2025080500123",
-    processingTime: "Instant"
-  },
-  {
-    id: "RC002", 
-    amount: "80.00",
-    date: "04/08/2025 09:15:42",
-    method: "Mobile Payment",
-    status: "Success",
-    reference: "MP2025080400456",
-    processingTime: "Instant"
-  },
-  {
-    id: "RC003",
-    amount: "50.00", 
-    date: "03/08/2025 16:45:18",
-    method: "Credit Card",
-    status: "Success",
-    reference: "CC2025080300789",
-    processingTime: "Instant"
-  },
-  {
-    id: "RC004",
-    amount: "100.00",
-    date: "02/08/2025 11:20:33",
-    method: "Bank Transfer", 
-    status: "Processing",
-    reference: "BT2025080200234",
-    processingTime: "1-3 hours"
-  }
-];
-
-const withdrawalRecords = [
-  {
-    id: "WD001",
-    amount: "24,000.00",
-    date: "05/08/2025 09:09:36", 
-    method: "Bank Transfer",
-    status: "Success",
-    processingTime: "48 hours",
-    reference: "WD2025080500567"
-  },
-  {
-    id: "WD002",
-    amount: "1,500.00", 
-    date: "04/08/2025 15:22:18",
-    method: "Mobile Wallet",
-    status: "Under Review",
-    processingTime: "24-72 hours",
-    reference: "WD2025080400890"
-  },
-  {
-    id: "WD003",
-    amount: "4,000.00",
-    date: "03/08/2025 12:45:55",
-    method: "Bank Transfer",
-    status: "Success", 
-    processingTime: "36 hours",
-    reference: "WD2025080300123"
-  },
-  {
-    id: "WD004",
-    amount: "800.00",
-    date: "02/08/2025 18:30:12",
-    method: "PayPal",
-    status: "Failed",
-    processingTime: "N/A",
-    reference: "WD2025080200456"
-  }
-];
+interface TransactionRecord {
+  id: string;
+  amount: string;
+  date: string;
+  method: string;
+  status: string;
+  reference: string;
+  processingTime?: string;
+}
 
 export const Records = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [rechargeRecords, setRechargeRecords] = useState<TransactionRecord[]>([]);
+  const [withdrawalRecords, setWithdrawalRecords] = useState<TransactionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dbUserId, setDbUserId] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const filterRecords = (records: typeof rechargeRecords) => {
+  useEffect(() => {
+    fetchTransactionRecords();
+  }, []);
+
+  // Subscribe to real-time changes on withdrawals for this user
+  useEffect(() => {
+    if (!dbUserId) return;
+
+    const channel = (supabase as unknown as any)
+      .channel('withdrawals-status-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'withdrawals',
+          filter: `user_id=eq.${dbUserId}`
+        },
+        (payload: any) => {
+          // Update list optimistically
+          fetchTransactionRecords(false);
+
+          // Show toast when approved
+          const newStatus = payload?.new?.status || payload?.record?.status;
+          if (newStatus === 'approved') {
+            toast({
+              title: 'Withdrawal Approved',
+              description: 'Your withdrawal has been approved successfully.'
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    const depositsChannel = (supabase as unknown as any)
+      .channel('deposits-status-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'deposits',
+          filter: `user_id=eq.${dbUserId}`
+        },
+        (payload: any) => {
+          fetchTransactionRecords(false);
+          const newStatus = payload?.new?.status || payload?.record?.status;
+          if (newStatus === 'approved') {
+            toast({
+              title: 'Deposit Approved',
+              description: 'Your deposit has been approved successfully.'
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        (supabase as unknown as any).removeChannel(channel);
+        (supabase as unknown as any).removeChannel(depositsChannel);
+      } catch {}
+    };
+  }, [dbUserId]);
+
+  const fetchTransactionRecords = async (setId: boolean = true) => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Resolve internal user id
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single();
+      const internalUserId = dbUser?.id || user.id;
+      if (setId) setDbUserId(internalUserId);
+
+      // Fetch deposits (recharge records)
+      const { data: deposits, error: depositsError } = await supabase
+        .from('deposits')
+        .select(`
+          id,
+          amount,
+          payment_method,
+          status,
+          created_at,
+          payment_methods!inner(name)
+        `)
+        .eq('user_id', internalUserId)
+        .order('created_at', { ascending: false });
+
+      if (depositsError) {
+        console.error('Error fetching deposits:', depositsError);
+      } else {
+        const formattedDeposits: TransactionRecord[] = deposits?.map(deposit => ({
+          id: deposit.id,
+          amount: deposit.amount.toString(),
+          date: new Date(deposit.created_at).toLocaleString(),
+          method: deposit.payment_methods?.name || deposit.payment_method || 'Unknown',
+          status: deposit.status === 'approved' ? 'Success' : 
+                  deposit.status === 'pending' ? 'Processing' : 
+                  deposit.status === 'rejected' ? 'Failed' : deposit.status,
+          reference: `DEP${deposit.id.slice(-8).toUpperCase()}`,
+          processingTime: deposit.status === 'approved' ? 'Instant' : '1-3 hours'
+        })) || [];
+        setRechargeRecords(formattedDeposits);
+      }
+
+      // Fetch withdrawals
+      const { data: withdrawals, error: withdrawalsError } = await (supabase as unknown as any)
+        .from('withdrawals')
+        .select(`
+          id,
+          amount,
+          payment_method,
+          status,
+          created_at
+        `)
+        .eq('user_id', internalUserId)
+        .order('created_at', { ascending: false });
+
+      if (withdrawalsError) {
+        console.error('Error fetching withdrawals:', withdrawalsError);
+      } else {
+        const formattedWithdrawals: TransactionRecord[] = withdrawals?.map(withdrawal => ({
+          id: withdrawal.id,
+          amount: withdrawal.amount.toString(),
+          date: new Date(withdrawal.created_at).toLocaleString(),
+          method: withdrawal.payment_method || 'Unknown',
+          status: withdrawal.status === 'approved' ? 'Success' : 
+                  withdrawal.status === 'pending' ? 'Under Review' : 
+                  withdrawal.status === 'rejected' ? 'Failed' : withdrawal.status,
+          reference: `WD${withdrawal.id.slice(-8).toUpperCase()}`,
+          processingTime: withdrawal.status === 'approved' ? '24-48 hours' : 
+                         withdrawal.status === 'pending' ? '24-72 hours' : 'N/A'
+        })) || [];
+        setWithdrawalRecords(formattedWithdrawals);
+      }
+
+    } catch (error) {
+      console.error('Error fetching transaction records:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load transaction records",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterRecords = (records: TransactionRecord[]) => {
     return records.filter(record => {
       const matchesSearch = record.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            record.amount.includes(searchTerm);
@@ -117,19 +218,45 @@ export const Records = () => {
     }
   };
 
-  const getTotalAmount = (records: typeof rechargeRecords, type: 'success' | 'all' = 'all') => {
+  const getTotalAmount = (records: TransactionRecord[], type: 'success' | 'all' = 'all') => {
     const filtered = type === 'success' 
       ? records.filter(r => r.status.toLowerCase() === 'success')
       : records;
     
-    return filtered.reduce((sum, record) => sum + parseFloat(record.amount), 0);
+    return filtered.reduce((sum, record) => sum + parseFloat(record.amount.replace(/,/g, '')), 0);
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-2">Transaction Records</h1>
+          <p className="text-muted-foreground">Loading your transaction history...</p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-16 h-16 border-4 border-primary-foreground/20 border-t-primary-foreground rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Page Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">Transaction Records</h1>
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <h1 className="text-3xl font-bold">Transaction Records</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchTransactionRecords}
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
         <p className="text-muted-foreground">Track your recharge and withdrawal history</p>
       </div>
 

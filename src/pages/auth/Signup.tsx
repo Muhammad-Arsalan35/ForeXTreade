@@ -47,7 +47,8 @@ export const Signup = () => {
   // Auto-fill referral code from URL
   useEffect(() => {
     const refCode = searchParams.get('ref') || urlReferralCode;
-    if (refCode && refCode.length > 0 && !isNaN(Number(refCode))) {
+    if (refCode && refCode.length > 0) {
+      console.log('Referral code detected:', refCode);
       setFormData(prev => ({
         ...prev,
         referralCode: refCode
@@ -102,7 +103,7 @@ export const Signup = () => {
       // If phone auth fails, try email format
       if (error && (error.message.includes('email') || error.message.includes('disabled'))) {
         console.log('Phone auth failed, trying email format...');
-        const emailFormat = `${formData.phone.replace(/\D/g, '')}@taskmaster.app`;
+        const emailFormat = `${formData.phone.replace(/\D/g, '')}@fxtrade.app`;
         
         const { data: emailData, error: emailError } = await supabase.auth.signUp({
           email: emailFormat,
@@ -134,22 +135,123 @@ export const Signup = () => {
       }
 
       if (data.user) {
-        // Store user data in localStorage as backup
-        localStorage.setItem('userData', JSON.stringify({
-          fullName: formData.fullName,
-          username: formData.username,
-          phone: formData.phone,
-          referralCode: formData.referralCode
-        }));
+        try {
+          // Create user profile in the database
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert({
+              auth_user_id: data.user.id,
+              full_name: formData.fullName,
+              username: formData.username,
+              phone: formData.phone,
+              referral_code: Math.floor(100000 + Math.random() * 900000).toString(), // Generate a random 6-digit code
+              referred_by: formData.referralCode || null
+            });
 
-        toast({
-          title: "Success!",
-          description: "Account created successfully. You can now login.",
-        });
-        navigate("/dashboard", { replace: true });
+          if (profileError) {
+            console.error('Error creating user profile:', profileError);
+            toast({
+              title: "Warning",
+              description: "Account created but profile setup incomplete. Please contact support.",
+              variant: "destructive"
+            });
+          } else {
+            // Wait a moment for the database trigger to create the user profile
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Update the user profile with additional information
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({
+                full_name: formData.fullName,
+                username: formData.username,
+                phone_number: formData.phone,
+                referred_by: formData.referralCode || null
+              })
+              .eq('auth_user_id', data.user.id);
+    
+            if (updateError) {
+              console.error('Error updating user profile:', updateError);
+              toast({
+                title: "Warning",
+                description: "Account created but profile setup incomplete. Please contact support.",
+                variant: "destructive"
+              });
+            } else {
+              // If referral code is provided, update team structure
+              try {
+                if (formData.referralCode) {
+                  // Find the referrer
+                  const { data: referrerData, error: referrerError } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('referral_code', formData.referralCode)
+                    .single();
+
+                  if (!referrerError && referrerData) {
+                    // Get the newly created user's ID from the users table
+                    const { data: newUserData, error: newUserError } = await supabase
+                      .from('users')
+                      .select('id')
+                      .eq('auth_user_id', data.user.id)
+                      .single();
+
+                    if (!newUserError && newUserData) {
+                      // Add to referrals table
+                      await supabase
+                        .from('referrals')
+                        .insert({
+                          referrer_id: referrerData.id,
+                          referred_id: newUserData.id,
+                          level: 'A', // Direct referral
+                          commission_rate: 0.1, // 10% commission rate for direct referrals
+                          referral_code_used: formData.referralCode,
+                          registration_completed: true,
+                          status: 'active'
+                        });
+
+                      // Add to team structure
+                      await supabase
+                        .from('team_structure')
+                        .insert({
+                          user_id: newUserData.id,
+                          parent_id: referrerData.id
+                        });
+                    }
+                  }
+                }
+              } catch (dbError) {
+                console.error('Database error:', dbError);
+              }
+            }
+          }
+
+          // Store user data in localStorage as backup
+          localStorage.setItem('userData', JSON.stringify({
+            fullName: formData.fullName,
+            username: formData.username,
+            phone: formData.phone,
+            referralCode: formData.referralCode
+          }));
+
+          toast({
+            title: "Success!",
+            description: "Account created successfully. You can now login.",
+          });
+          navigate("/dashboard", { replace: true });
+        } catch (error) {
+          console.error('Unexpected error:', error);
+          toast({
+            title: "Signup Failed",
+            description: "An unexpected error occurred. Please try again.",
+            variant: "destructive"
+          });
+        } finally {
+          setLoading(false);
+        }
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Signup error:', error);
       toast({
         title: "Signup Failed",
         description: "An unexpected error occurred. Please try again.",
@@ -168,8 +270,8 @@ export const Signup = () => {
           <div className="w-20 h-20 bg-gradient-golden rounded-full mx-auto mb-4 flex items-center justify-center shadow-golden">
             <Globe className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-primary-foreground mb-2">Join TaskMaster</h1>
-          <p className="text-primary-foreground/80">Start earning with VIP tasks today</p>
+          <h1 className="text-3xl font-bold text-primary-foreground mb-2">Join FXTrade</h1>
+          <p className="text-primary-foreground/80">EARN WITH TASK - Start earning today</p>
         </div>
 
         <Card className="shadow-elegant border-primary/20">

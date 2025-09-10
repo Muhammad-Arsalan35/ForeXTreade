@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Test</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    <div id="status">Loading...</div>
+    <button id="testBtn">Test Database Connection</button>
+    <div id="result"></div>
+
+    <script>
+        // Replace with your actual Supabase URL and anon key
+        const supabaseUrl = 'YOUR_SUPABASE_URL';
+        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            try {
+                // Test database connection
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('count')
+                    .limit(1);
+                
+                if (error) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>Database Error:</h3>
+                        <pre>${JSON.stringify(error, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <h3>Database Connection Success!</h3>
+                        <p>Users table is accessible.</p>
+                    `;
+                }
+            } catch (err) {
+                document.getElementById('result').innerHTML = `
+                    <h3>Connection Error:</h3>
+                    <pre>${err.message}</pre>
+                `;
+            }
+        });
+
+        // Check auth status
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                document.getElementById('status').innerHTML = `
+                    <h3>Authenticated User:</h3>
+                    <p>ID: ${session.user.id}</p>
+                    <p>Email: ${session.user.email || 'N/A'}</p>
+                    <p>Phone: ${session.user.phone || 'N/A'}</p>
+                `;
+            } else {
+                document.getElementById('status').innerHTML = '<h3>Not Authenticated</h3>';
+            }
+        });
+    </script>
+</body>
+</html>
+

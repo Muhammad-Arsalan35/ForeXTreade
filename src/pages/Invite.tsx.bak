@@ -13,7 +13,7 @@ import {
   AlertCircle,
   RefreshCw
 } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import QRCode from "qrcode.react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,24 @@ export function Invite() {
   const [inviteCode, setInviteCode] = useState("");
   const [referralUrl, setReferralUrl] = useState("");
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const [copied, setCopied] = useState<{type: string, visible: boolean}>({type: '', visible: false});
   const { toast } = useToast();
+  
+  const showToast = ({
+    title,
+    description,
+    variant = 'default',
+  }: {
+    title: string;
+    description: string;
+    variant?: 'default' | 'destructive';
+  }) => {
+    toast({
+      title,
+      description,
+      variant,
+    });
+  };
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
@@ -79,7 +96,7 @@ export function Invite() {
 
       if (profileError) {
         console.error('Error fetching user profile:', profileError);
-        toast({
+        showToast({
           title: "Error",
           description: "Failed to load user profile. Please try again.",
           variant: "destructive"
@@ -87,12 +104,7 @@ export function Invite() {
         return;
       }
       
-      setUserProfile({
-        id: profileData.id,
-        referral_code: profileData.referral_code,
-        total_referral_earnings: profileData.total_referral_earnings || 0,
-        referral_count: profileData.referral_count || 0
-      });
+      setUserProfile(profileData);
       setInviteCode(profileData.referral_code);
       
       // Generate referral URL with the current domain
@@ -123,7 +135,7 @@ export function Invite() {
       const { data: ratesData, error: ratesError } = await supabase
         .from('commission_rates')
         .select('*')
-        .eq('is_active', true);
+        .single();
 
       if (ratesError) {
         console.error('Error fetching commission rates:', ratesError);
@@ -132,7 +144,7 @@ export function Invite() {
       // Fetch referral earnings from referral_commissions table
       const { data: earningsData, error: earningsError } = await supabase
         .from('referral_commissions')
-        .select<'level, amount', { level: string; amount: number }>('level, amount')
+        .select('level, amount')
         .eq('user_id', profileData.id);
         
       if (earningsError) {
@@ -169,32 +181,26 @@ export function Invite() {
         }
       ]);
 
-      // Get commission rates by level
-      const getCommissionRate = (level: string) => {
-        const rate = ratesData?.find(r => r.level === level);
-        return rate?.vip_upgrade_commission_percentage || 0;
-      };
-
       // Update team structure
-     setTeamStructure([
+      setTeamStructure([
         {
           level: "A Team (Direct)",
           members: aTeamCount,
-          commission: `${getCommissionRate('A')}%`,
+          commission: `${ratesData?.a_level_commission_percentage || 12}%`,
           earnings: `${aLevelEarnings.toFixed(2)} PKR`,
           validity: `${aTeamCount}/${aTeamCount}`
         },
         {
           level: "B Team (Level 2)",
           members: bTeamCount,
-          commission: `${getCommissionRate('B')}%`,
+          commission: `${ratesData?.b_level_commission_percentage || 4}%`,
           earnings: `${bLevelEarnings.toFixed(2)} PKR`, 
           validity: `${bTeamCount}/${bTeamCount}`
         },
         {
           level: "C Team (Level 3)",
           members: cTeamCount,
-          commission: `${getCommissionRate('C')}%`,
+          commission: `${ratesData?.c_level_commission_percentage || 2}%`,
           earnings: `${cLevelEarnings.toFixed(2)} PKR`,
           validity: `${cTeamCount}/${cTeamCount}`
         }
@@ -204,7 +210,7 @@ export function Invite() {
       console.error('Error fetching data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load referral data';
       setError(errorMessage);
-      toast({
+      showToast({
         title: "Error",
         description: errorMessage,
         variant: "destructive"
@@ -212,24 +218,27 @@ export function Invite() {
     } finally {
       setLoading(false);
     }
-  }, [navigate, toast]);
+  }, [navigate, showToast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+  };
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (text: string, type: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({
+      setCopied({type, visible: true});
+      setTimeout(() => setCopied(prev => ({...prev, visible: false})), 2000);
+      showToast({
         title: "Copied!",
-        description: "Referral link copied to clipboard",
+        description: `${type} copied to clipboard`
       });
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-      toast({
+    } catch (error: unknown) {
+      console.error('Failed to copy:', error);
+      showToast({
         title: "Error",
-        description: "Failed to copy to clipboard",
+        description: "Failed to copy to clipboard. Please try again.",
         variant: "destructive"
       });
     }
@@ -257,12 +266,12 @@ export function Invite() {
           <p className="text-muted-foreground">Loading your referral data...</p>
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <AlertCircle className="h-8 w-8 text-destructive mb-4" />
-          <p className="text-destructive font-medium mb-2">Error Loading Data</p>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-4">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Error Loading Data</h3>
           <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => fetchData()} variant="outline" size="sm">
-            <RefreshCw className="mr-2 h-4 w-4" />
+          <Button onClick={fetchData} variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
             Try Again
           </Button>
         </div>
@@ -291,100 +300,116 @@ export function Invite() {
       </div>
 
       {/* QR Code and Invite Code */}
-      <Card className="bg-gradient-to-br from-blue-600 to-purple-700 shadow-lg">
+      <Card className="bg-gradient-golden shadow-golden">
         <CardContent className="p-6 text-center">
-          <div className="bg-white p-6 rounded-lg inline-block mb-4">
-            <QRCodeSVG value={referralUrl} size={128} className="mx-auto" />
-          </div>
-          
-          <div className="mb-4">
-            <p className="text-sm text-white/80 mb-1">Your Invitation Code</p>
-            <div className="flex items-center justify-center space-x-2">
-              <Badge variant="outline" className="text-lg py-2 px-4 font-mono bg-white text-blue-700 border-white">{inviteCode}</Badge>
-              <Button size="icon" variant="ghost" className="text-white hover:bg-white/20" onClick={() => copyToClipboard(inviteCode)}>
-                <Copy className="h-4 w-4" />
-              </Button>
+          <div className="bg-white p-4 rounded-lg inline-block mb-4">
+            <div className="p-2 bg-white rounded">
+              <QRCode 
+                value={referralUrl} 
+                size={140}
+                level="H"
+                includeMargin={true}
+                renderAs="svg"
+                className="mx-auto"
+              />
             </div>
           </div>
           
-          <div className="text-sm text-white">
-            <p className="text-white/90">Share this code with friends and earn up to</p>
-            <p className="font-bold text-yellow-300 text-xl">18% Commission</p>
-            <p className="text-white/90">on their earnings</p>
+          <h3 className="text-xl font-bold text-primary-foreground mb-2">Your Invitation Code</h3>
+          
+          <div className="bg-white/20 rounded-lg p-4 mb-4">
+            <p className="text-3xl font-bold text-primary-foreground tracking-widest">
+              {inviteCode}
+            </p>
+          </div>
+
+          <Button 
+            variant="secondary" 
+            onClick={() => copyToClipboard(inviteCode, "Invite code")}
+            className="bg-white/20 hover:bg-white/30 border-white/30 text-primary-foreground mb-4"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            Copy Code
+          </Button>
+
+          <div className="space-y-2 text-primary-foreground/90 text-sm">
+            <p>✓ Share link or invitation code</p>
+            <p>✓ Send to friends who need jobs</p>
+            <p>✓ A-level subordinate creation when someone joins</p>
+            <p>✓ Referral bonuses and task management fees</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Referral Link */}
-      <Card>
+      {/* Referral URL */}
+      <Card className="shadow-card">
         <CardHeader>
           <CardTitle>Referral Link</CardTitle>
-          <CardDescription>Share this link with friends to earn rewards</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex space-x-2">
             <Input 
               value={referralUrl} 
               readOnly 
-              className="font-mono text-sm"
+              className="flex-1"
             />
-            <Button onClick={() => copyToClipboard(referralUrl)}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy
+            <Button 
+              variant="outline"
+              onClick={() => copyToClipboard(referralUrl, "Referral link")}
+            >
+              <Copy className="w-4 h-4" />
             </Button>
           </div>
           
-          <div className="mt-6">
-            <p className="text-sm font-medium mb-3">Share via</p>
-            <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="rounded-full" 
-                onClick={() => shareViaApp("whatsapp")}
-              >
-                <MessageSquare className="h-5 w-5 text-green-600" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="rounded-full" 
-                onClick={() => shareViaApp("telegram")}
-              >
-                <Send className="h-5 w-5 text-blue-500" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="rounded-full" 
-                onClick={() => shareViaApp("facebook")}
-              >
-                <Facebook className="h-5 w-5 text-blue-600" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="rounded-full" 
-                onClick={() => shareViaApp("twitter")}
-              >
-                <Twitter className="h-5 w-5 text-sky-500" />
-              </Button>
-            </div>
+          {/* Share Buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => shareViaApp("whatsapp")}
+              className="justify-start space-x-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>WhatsApp</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => shareViaApp("telegram")}
+              className="justify-start space-x-2"
+            >
+              <Send className="w-4 h-4" />
+              <span>Telegram</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => shareViaApp("facebook")}
+              className="justify-start space-x-2"
+            >
+              <Facebook className="w-4 h-4" />
+              <span>Facebook</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => shareViaApp("twitter")}
+              className="justify-start space-x-2"
+            >
+              <Twitter className="w-4 h-4" />
+              <span>Twitter</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Team Structure */}
-      <Card>
+      <Card className="shadow-card">
         <CardHeader>
-          <CardTitle>Team Structure</CardTitle>
-          <CardDescription>Your referral network and earnings</CardDescription>
+          <CardTitle>My Team Structure</CardTitle>
+          <p className="text-muted-foreground">Multi-level commission system</p>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {teamStructure.map((team, index) => (
-            <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-medium">{team.level}</h3>
+            <div key={index} className="p-4 border border-border rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold">{team.level}</h3>
                 <Badge variant="outline">{team.commission} Commission</Badge>
               </div>
               

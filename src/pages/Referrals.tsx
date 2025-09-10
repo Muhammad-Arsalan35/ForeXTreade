@@ -71,17 +71,64 @@ export const Referrals = () => {
 
       if (profileError) {
         console.error('Error fetching user profile:', profileError);
-        // Set default profile if user doesn't exist
-        setUserProfile({ id: user.id, referral_code: 'DEFAULT', total_earnings: 0 });
+        toast({
+          title: "Error",
+          description: "Failed to load user profile. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setUserProfile(profileData);
+
+      // Fetch referral commissions from the database
+      const { data: commissionsData, error: commissionsError } = await supabase
+        .from('referral_commissions')
+        .select(`
+          id,
+          referred_user_id,
+          commission_amount,
+          commission_type,
+          status,
+          created_at,
+          referred_user:users!referred_user_id(full_name, username, membership_type)
+        `)
+        .eq('referrer_id', profileData.id)
+        .order('created_at', { ascending: false });
+
+      if (commissionsError) {
+        console.error('Error fetching commissions:', commissionsError);
       } else {
-        setUserProfile(profileData);
+        setReferralCommissions(commissionsData || []);
       }
 
-      // Set default referral commissions since tables don't exist
-      setReferralCommissions([]);
+      // Fetch team members from the database
+      const { data: teamData, error: teamError } = await supabase
+        .from('team_structure')
+        .select(`
+          referred_user:users!referred_user_id(
+            id,
+            full_name,
+            username,
+            membership_level,
+            membership_type,
+            total_earnings,
+            created_at
+          )
+        `)
+        .eq('referrer_id', profileData.id)
+        .order('created_at', { ascending: false });
 
-      // Set default team members since tables don't exist
-      setTeamMembers([]);
+      if (teamError) {
+        console.error('Error fetching team members:', teamError);
+      } else {
+        // Transform the data to match the TeamMember interface
+        const formattedTeamData = teamData?.map(item => ({
+          ...item.referred_user
+        })) || [];
+        
+        setTeamMembers(formattedTeamData);
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);

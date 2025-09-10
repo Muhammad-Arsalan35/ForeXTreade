@@ -41,14 +41,14 @@ BEGIN
         username,
         phone_number,
         referral_code,
-        user_status
+        user_status  -- ✅ Setting 'user_status' to 'active'
     ) VALUES (
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
         COALESCE(NEW.raw_user_meta_data->>'username', 'user_' || substr(NEW.id::text, 1, 8)),
         COALESCE(NEW.raw_user_meta_data->>'phone_number', NEW.phone),
         UPPER(substr(gen_random_uuid()::text, 1, 8)),
-        'active'
+        'active'  -- ✅ This sets user_status to 'active'
     );
     
     RETURN NEW;

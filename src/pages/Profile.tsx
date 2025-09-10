@@ -92,7 +92,14 @@ export const Profile = () => {
   };
 
   const handleWhatsAppContact = () => {
-    const phoneNumber = "+923001234567"; // Replace with actual support number
+    // Get support phone number from database or environment variable instead of hardcoding
+    // For now, we'll use a placeholder that should be replaced with a real configuration
+    const { data: supportConfig } = supabase
+      .from('app_config')
+      .select('support_phone')
+      .single();
+      
+    const phoneNumber = supportConfig?.support_phone || "+923001234567"; // Fallback if config not available
     const message = "Hello! I need 24/7 support assistance.";
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');

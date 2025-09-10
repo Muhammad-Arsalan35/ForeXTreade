@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useUserActivity } from "@/hooks/useUserActivity";
 
 type MembershipPlan = {
   id: string;
@@ -43,11 +44,15 @@ type UsersTableRow = {
   id: string;
   auth_user_id: string;
   personal_wallet_balance: number | null;
+  total_earnings: number | null;
+  referral_count: number | null;
+  vip_level?: string | null;
 };
 
 const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { trackPageView, trackVipUpgrade } = useUserActivity();
 
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfilesRow | null>(null);
@@ -57,9 +62,13 @@ const Dashboard = () => {
   const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
   const [activePlan, setActivePlan] = useState<MembershipPlan | null>(null);
   const [currentVideoLimit, setCurrentVideoLimit] = useState<number>(0);
+  const [completedTodayCount, setCompletedTodayCount] = useState<number>(0);
   const [averageRewardPerWatch, setAverageRewardPerWatch] = useState<number>(0);
 
   useEffect(() => {
+    // Track page view
+    trackPageView('/dashboard');
+    
     const fetchVipData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -81,8 +90,10 @@ const Dashboard = () => {
                 username: user.email?.split('@')[0] || 'user',
                 phone_number: user.phone || null,
                 referral_code: Math.random().toString(36).substring(2, 10).toUpperCase(),
-                vip_level: 'VIP1',
-                position_title: 'General Employee'
+                vip_level: null,
+                position_title: 'Member',
+                total_earnings: 0,
+                referral_count: 0
               })
               .select()
               .single();
@@ -97,52 +108,191 @@ const Dashboard = () => {
             throw usersError;
           }
         } else {
+          // Get referral count if not already in user record
+          if (usersData && !usersData.referral_count) {
+            // Count referrals from team_structure table
+            const { count, error: countError } = await supabase
+              .from('team_structure')
+              .select('*', { count: 'exact', head: true })
+              .eq('referrer_id', usersData.id);
+              
+            if (!countError) {
+              // Update user record with referral count
+              await supabase
+                .from('users')
+                .update({ referral_count: count || 0 })
+                .eq('id', usersData.id);
+                
+              usersData.referral_count = count || 0;
+            }
+          }
+          
           setUserRecord(usersData as unknown as UsersTableRow);
         }
 
-        // Set default membership plans since the table doesn't exist
-        setPlans([
-          { id: 1, name: 'VIP1', price: 0, features: ['Basic tasks', 'Standard rewards'] },
-          { id: 2, name: 'VIP2', price: 100, features: ['More tasks', 'Higher rewards'] },
-          { id: 3, name: 'VIP3', price: 500, features: ['Premium tasks', 'Maximum rewards'] }
-        ] as MembershipPlan[]);
+        // Fetch membership plans from the database
+        const { data: plansData, error: plansError } = await supabase
+          .from('membership_plans')
+          .select('*')
+          .eq('is_active', true)
+          .order('price', { ascending: true });
 
-        // Set default active plan since user_plans table doesn't exist
-        setActivePlan(null);
-
-        // Fetch current video limit via RPC if available
-        try {
-          const { data: limitData, error: limitError } = await supabase.rpc('get_user_video_limit', { user_uuid: user.id });
-          if (!limitError && typeof limitData === 'number') {
-            setCurrentVideoLimit(limitData);
-          }
-        } catch (e) {
-          // ignore if RPC not present
+        if (plansError) {
+          console.error('Error fetching plans:', plansError);
+        } else {
+          setPlans(plansData || []);
         }
 
-        // Compute average reward per active video to estimate daily earnings
-        try {
-          const { data: videosData, error: videosError } = await supabase
-            .from('videos')
-            .select('reward_per_watch')
-            .eq('is_active', true)
-            .limit(1000);
-          if (!videosError) {
-            const rewards = (videosData || []).map((v: any) => Number(v.reward_per_watch)).filter((n: number) => !isNaN(n));
-            const avg = rewards.length ? (rewards.reduce((a: number, b: number) => a + b, 0) / rewards.length) : 0;
-            setAverageRewardPerWatch(avg);
-          }
-        } catch (e) {
-          // ignore if table not available
+        // Fetch active plan if any
+        const { data: activePlanData, error: activePlanError } = await supabase
+          .from('user_plans')
+          .select('plan_id, membership_plans(*)')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (!activePlanError && activePlanData) {
+          setActivePlan(activePlanData.membership_plans);
         }
+
       } catch (error) {
-        console.error('Error loading VIP data:', error);
+        console.error('Error in fetchVipData:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load user data. Please try again.",
+          variant: "destructive"
+        });
       } finally {
         setLoadingVip(false);
       }
     };
+
     fetchVipData();
+  }, [toast]);
+
+  // Update earning rate and display values when active plan changes
+  useEffect(() => {
+    if (activePlan) {
+      const rate = getVideoRateForPlan(activePlan.name || '');
+      setAverageRewardPerWatch(rate);
+      if (activePlan.daily_video_limit && completedTodayCount >= 0) {
+        setCurrentVideoLimit(Math.max(0, (activePlan.daily_video_limit || 0) - (completedTodayCount || 0)));
+      }
+    }
+  }, [activePlan, completedTodayCount]);
+
+  useEffect(() => {
+    let usersChannel: any;
+    let plansChannel: any;
+    let userPlansChannel: any;
+    let userTasksChannel: any;
+
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Resolve internal user id
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single();
+      const internalUserId = dbUser?.id || user.id;
+
+      usersChannel = (supabase as unknown as any)
+        .channel('dashboard-users')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${internalUserId}` }, () => {
+          // refresh core user data and balances
+          (async () => {
+            const { data: usersData } = await supabase.from('users').select('*').eq('id', internalUserId).single();
+            if (usersData) setUserRecord(usersData as unknown as UsersTableRow);
+          })();
+        })
+        .subscribe();
+
+      plansChannel = (supabase as unknown as any)
+        .channel('dashboard-plans')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'membership_plans' }, () => {
+          (async () => {
+            const { data: plansData } = await supabase.from('membership_plans').select('*').eq('is_active', true).order('price', { ascending: true });
+            setPlans(plansData || []);
+          })();
+        })
+        .subscribe();
+
+      userPlansChannel = (supabase as unknown as any)
+        .channel('dashboard-user-plans')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_plans', filter: `user_id=eq.${user.id}` }, () => {
+          (async () => {
+            const { data: activePlanData } = await supabase
+              .from('user_plans')
+              .select('plan_id, membership_plans(*)')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+              .single();
+            if (activePlanData) setActivePlan(activePlanData.membership_plans);
+            // Recompute today's remaining tasks whenever plan changes
+            await recomputeTodaysRemainingTasks(user.id, activePlanData?.membership_plans?.daily_video_limit);
+          })();
+        })
+        .subscribe();
+
+      // Subscribe to user_tasks changes for real-time active tasks count
+      userTasksChannel = (supabase as unknown as any)
+        .channel('dashboard-user-tasks')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${user.id}` }, () => {
+          (async () => {
+            await recomputeTodaysRemainingTasks(user.id, activePlan?.daily_video_limit);
+          })();
+        })
+        .subscribe();
+      
+      // Initial compute
+      await recomputeTodaysRemainingTasks(user.id, activePlan?.daily_video_limit);
+    })();
+
+    return () => {
+      try {
+        if (usersChannel) (supabase as unknown as any).removeChannel(usersChannel);
+        if (plansChannel) (supabase as unknown as any).removeChannel(plansChannel);
+        if (userPlansChannel) (supabase as unknown as any).removeChannel(userPlansChannel);
+        if (userTasksChannel) (supabase as unknown as any).removeChannel(userTasksChannel);
+      } catch {}
+    };
   }, []);
+
+  const recomputeTodaysRemainingTasks = async (authUserId: string, dailyLimit?: number) => {
+    try {
+      // Resolve internal users.id for foreign key usage
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', authUserId)
+        .single();
+      const internalUserId = dbUser?.id || authUserId;
+
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+
+      const { count } = await supabase
+        .from('user_tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', internalUserId)
+        .eq('status', 'completed')
+        .gte('completed_at', start.toISOString())
+        .lte('completed_at', end.toISOString());
+
+      const completed = count || 0;
+      setCompletedTodayCount(completed);
+
+      const limit = typeof dailyLimit === 'number' ? dailyLimit : (activePlan?.daily_video_limit || 0);
+      setCurrentVideoLimit(Math.max(0, limit - completed));
+    } catch (e) {
+      console.error('Failed to compute today\'s tasks:', e);
+    }
+  };
 
   const affordablePlan = useMemo(() => {
     if (!plans.length || !userRecord) return null;
@@ -199,7 +349,7 @@ const Dashboard = () => {
       }
 
       toast({ title: 'VIP Activated', description: `Welcome to ${affordablePlan.name}. Enjoy increased video earnings!` });
-      navigate('/videos');
+      navigate('/dashboard/task');
     } catch (err) {
       console.error('Join VIP failed:', err);
       toast({ title: 'Activation Failed', description: 'Could not activate VIP. Please try again.', variant: 'destructive' });
@@ -227,47 +377,61 @@ const Dashboard = () => {
     return `bg-gradient-to-r ${palettes[index % palettes.length]}`;
   };
 
-  const getPlanForLevel = (level: number): MembershipPlan | null => {
-    if (!plans.length) return null;
-    // Try exact name match like "VIP1", fallback to contains
-    const exact = plans.find(p => p.name?.toLowerCase() === `vip${level}`.toLowerCase());
-    if (exact) return exact;
-    const contains = plans.find(p => (p.name || '').toLowerCase().includes(`vip ${level}`) || (p.name || '').toLowerCase().includes(`vip${level}`));
-    return contains || null;
+  // Map plan name to per-video rate for daily earning calculation
+  const getVideoRateForPlan = (planName: string): number => {
+    const rates: Record<string, number> = {
+      VIP1: 30,
+      VIP2: 50,
+      VIP3: 70,
+      VIP4: 80,
+      VIP5: 100,
+      VIP6: 115,
+      VIP7: 160,
+      VIP8: 220,
+      VIP9: 260,
+      VIP10: 440,
+    };
+    const key = (planName || '').toUpperCase().replace(/\s+/g, '');
+    return rates[key] ?? 0;
   };
-
-  // Fixed VIP table values as per provided specification
-  type VipSpec = { level: number; name: string; deposit: number; tasks: number; unitPrice: number };
-  const vipSpecs: VipSpec[] = [
-    { level: 0, name: 'Intern', deposit: 0, tasks: 5, unitPrice: 50 },
-    { level: 1, name: 'VIP1', deposit: 9000, tasks: 5, unitPrice: 60 },
-    { level: 2, name: 'VIP2', deposit: 24000, tasks: 10, unitPrice: 80 },
-    { level: 3, name: 'VIP3', deposit: 70000, tasks: 16, unitPrice: 156 },
-    { level: 4, name: 'VIP4', deposit: 185000, tasks: 31, unitPrice: 215 },
-    { level: 5, name: 'VIP5', deposit: 500000, tasks: 50, unitPrice: 390 },
-    { level: 6, name: 'VIP6', deposit: 1330000, tasks: 75, unitPrice: 668 },
-    { level: 7, name: 'VIP7', deposit: 3000000, tasks: 150, unitPrice: 830 },
-    { level: 8, name: 'VIP8', deposit: 6300000, tasks: 220, unitPrice: 1250 },
-    { level: 9, name: 'VIP9', deposit: 12000000, tasks: 300, unitPrice: 1800 },
-    { level: 10, name: 'VIP10', deposit: 23000000, tasks: 380, unitPrice: 2720 },
-  ];
-
-  const calcDaily = (tasks: number, unit: number) => tasks * unit;
-  const calcMonthly = (daily: number) => daily * 30;
-  const calcAnnual = (monthly: number) => monthly * 12;
 
   const handleJoinPlan = async (plan: MembershipPlan) => {
     if (processingJoin) return;
-    if (plan.price > balance) {
-      toast({ title: 'Insufficient Balance', description: 'Add funds to your personal wallet to join this plan.', variant: 'destructive' });
-      return;
-    }
     try {
       setProcessingJoin(true);
       setProcessingPlanId(plan.id);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Determine if this is an upgrade (active plan exists and target price is higher)
+      const isUpgrade = !!activePlan && plan.id !== activePlan.id && (plan.price > (activePlan.price || 0));
+
+      // Require sufficient personal wallet for the new plan price
+      if (plan.price > balance) {
+        toast({ title: 'Insufficient Balance', description: 'Please add funds to your personal wallet before upgrading/joining.', variant: 'destructive' });
+        return;
+      }
+
+      // Resolve internal user id for user_plans relation
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id, income_wallet_balance, personal_wallet_balance, vip_level')
+        .eq('auth_user_id', user.id)
+        .single();
+      const internalUserId = dbUser?.id || user.id;
+
+      // Deduct new plan price from personal wallet
+      if (userRecord?.id) {
+        const newPersonal = Math.max(0, balance - plan.price);
+        const { error: walletUpdateErr } = await supabase
+          .from('users')
+          .update({ personal_wallet_balance: newPersonal })
+          .eq('id', userRecord.id);
+        if (walletUpdateErr) throw walletUpdateErr;
+        setUserRecord(prev => prev ? { ...prev, personal_wallet_balance: newPersonal } : prev);
+      }
+
+      // Create new active subscription
       const start = new Date();
       const end = new Date();
       end.setDate(end.getDate() + plan.duration_days);
@@ -281,24 +445,57 @@ const Dashboard = () => {
       });
       if (planErr) throw planErr;
 
-      const { error: profErr } = await supabase
-        .from('users')
-        .update({ vip_level: 'VIP1' })
-        .eq('auth_user_id', user.id);
-      if (profErr) throw profErr;
-
-      if (userRecord?.id) {
-        const newBalance = Math.max(0, balance - plan.price);
-        const { error: userUpdateErr } = await supabase
-          .from('users')
-          .update({ personal_wallet_balance: newBalance })
-          .eq('id', userRecord.id);
-        if (userUpdateErr) throw userUpdateErr;
-        setUserRecord(prev => prev ? { ...prev, personal_wallet_balance: newBalance } : prev);
+      // Record upgrade event if applicable
+      if (isUpgrade) {
+        await supabase.from('vip_upgrades').insert({
+          user_id: internalUserId,
+          from_level: (dbUser?.vip_level as any) || null,
+          to_level: plan.name as any,
+          upgrade_amount: plan.price,
+          status: 'completed',
+          upgrade_date: new Date().toISOString()
+        });
       }
 
-      toast({ title: 'VIP Activated', description: `Welcome to ${plan.name}!` });
-      navigate('/videos');
+      // Update user's vip_level to the new plan's level name
+      const { error: profErr2 } = await supabase
+        .from('users')
+        .update({ vip_level: plan.name as any })
+        .eq('id', internalUserId);
+      if (profErr2) throw profErr2;
+
+      // If upgrading, now deactivate old plan and refund its price to income wallet
+      if (isUpgrade) {
+        await supabase
+          .from('user_plans')
+          .update({ is_active: false })
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .neq('plan_id', plan.id);
+
+        const previousPrice = activePlan?.price || 0;
+        const { data: freshUser } = await supabase
+          .from('users')
+          .select('income_wallet_balance')
+          .eq('id', internalUserId)
+          .single();
+        const newIncome = (freshUser?.income_wallet_balance || 0) + previousPrice;
+        const { error: incomeUpdateErr } = await supabase
+          .from('users')
+          .update({ income_wallet_balance: newIncome })
+          .eq('id', internalUserId);
+        if (incomeUpdateErr) throw incomeUpdateErr;
+      }
+
+      // Track VIP upgrade activity
+      if (isUpgrade) {
+        await trackVipUpgrade(activePlan?.name || 'None', plan.name, plan.price);
+      } else {
+        await trackVipUpgrade('None', plan.name, plan.price);
+      }
+
+      toast({ title: isUpgrade ? 'Plan Upgraded' : 'VIP Activated', description: isUpgrade ? `Upgraded to ${plan.name}.` : `Welcome to ${plan.name}!` });
+      navigate('/dashboard/task');
     } catch (err) {
       console.error('Join plan failed:', err);
       toast({ title: 'Activation Failed', description: 'Could not activate VIP. Please try again.', variant: 'destructive' });
@@ -330,9 +527,9 @@ const Dashboard = () => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$1,234.56</div>
+            <div className="text-2xl font-bold">Rs. {userRecord?.personal_wallet_balance?.toFixed(2) || '0.00'}</div>
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              Available in your wallet
             </p>
           </CardContent>
         </Card>
@@ -343,9 +540,9 @@ const Dashboard = () => {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{currentVideoLimit}</div>
             <p className="text-xs text-muted-foreground">
-              3 tasks due today
+              Daily video limit
             </p>
           </CardContent>
         </Card>
@@ -356,9 +553,9 @@ const Dashboard = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{userRecord?.referral_count || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +2 new this week
+              Team members
             </p>
           </CardContent>
         </Card>
@@ -369,9 +566,9 @@ const Dashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$89.40</div>
+            <div className="text-2xl font-bold">Rs. {userRecord?.total_earnings?.toFixed(2) || '0.00'}</div>
             <p className="text-xs text-muted-foreground">
-              +12% from last week
+              Total earnings
             </p>
           </CardContent>
         </Card>
@@ -393,53 +590,23 @@ const Dashboard = () => {
         <CardContent>
           {loadingVip ? (
             <div className="text-yellow-700">Loading VIP options...</div>
-          ) : userProfile?.membership_type === 'vip' ? (
-            <div className="flex flex-col items-center gap-3">
-              <Badge className="bg-green-100 text-green-800">VIP Active{activePlan ? ` • ${activePlan.name}` : ''}</Badge>
-              <div className="text-yellow-800 text-sm">
-                Daily Video Limit: {currentVideoLimit || (activePlan?.daily_video_limit ?? '—')}
-              </div>
-              <div className="text-yellow-900 font-semibold">
-                Estimated Daily Earnings: Rs. {((currentVideoLimit || activePlan?.daily_video_limit || 0) as number * averageRewardPerWatch).toFixed(2)}
-              </div>
-              <Button onClick={() => navigate('/videos')} className="bg-yellow-600 hover:bg-yellow-700 text-white">
-                <Zap className="mr-2 h-4 w-4" />
-                Go to Videos
-              </Button>
-            </div>
           ) : (
             <>
               <div className="space-y-3">
-                {/* Intern row */}
-                <div className={`rounded-xl border border-yellow-200 p-4 md:p-5 ${getVipStripeClasses(0)}`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm text-yellow-700">JOB</div>
-                      <div className="text-xl font-semibold text-yellow-900">Intern</div>
-                      <div className="text-xs text-yellow-700/80 mt-1">Daily Tasks: 5</div>
-                    </div>
-                    <Badge className="bg-gray-100 text-gray-700">Free</Badge>
-                  </div>
-                </div>
-
-                {vipSpecs.filter(s => s.level > 0).map((spec) => {
-                  const level = spec.level;
-                  const plan = getPlanForLevel(level);
-                  const locked = !plan || (plan.price > balance);
-                  const daily = calcDaily(spec.tasks, spec.unitPrice);
-                  const monthly = calcMonthly(daily);
-                  const annual = calcAnnual(monthly);
-                  const planId = plan ? plan.id : `vip-${level}`;
+                {plans.map((plan, index) => {
+                  const locked = plan.price > balance;
+                  const rate = getVideoRateForPlan(plan.name);
+                  const daily = (plan.daily_video_limit || 0) * rate;
                   return (
-                    <div key={planId} className={`rounded-xl border border-yellow-200 p-4 md:p-6 ${getVipStripeClasses(level)}`}>
+                    <div key={plan.id} className={`rounded-xl border border-yellow-200 p-4 md:p-6 ${getVipStripeClasses(index)}`}>
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-lg md:text-xl font-semibold text-yellow-900">{spec.name}</div>
-                          <div className="text-xs md:text-sm text-yellow-800 mt-1">Deposit: Rs. {spec.deposit.toLocaleString()}</div>
-                          <div className="text-xs md:text-sm text-yellow-800">Number of tasks: {spec.tasks}</div>
-                          <div className="text-xs md:text-sm text-yellow-800">Unit price: Rs. {spec.unitPrice.toLocaleString()}</div>
-                          <div className="text-xs md:text-sm text-yellow-900 font-semibold mt-1">Daily wages: Rs. {daily.toLocaleString()}</div>
-                          <div className="text-[11px] md:text-xs text-yellow-800/90">Monthly: Rs. {monthly.toLocaleString()} • Annual: Rs. {annual.toLocaleString()}</div>
+                          <div className="text-lg md:text-xl font-semibold text-yellow-900">{plan.name}</div>
+                          <div className="text-xs md:text-sm text-yellow-800 mt-1">Price: Rs. {plan.price.toLocaleString()}</div>
+                          <div className="text-xs md:text-sm text-yellow-800">Daily tasks: {plan.daily_video_limit}</div>
+                          <div className="text-xs md:text-sm text-yellow-800">Rate per video: Rs. {rate.toLocaleString()}</div>
+                          <div className="text-xs md:text-sm text-yellow-900 font-semibold mt-1">Daily earning: Rs. {daily.toLocaleString()}</div>
+                          <div className="text-[11px] md:text-xs text-yellow-800/90">Duration: {plan.duration_days} days</div>
                         </div>
                         <div className="flex items-center gap-2">
                           {locked ? (
@@ -449,11 +616,11 @@ const Dashboard = () => {
                           )}
                           <Button
                             size="sm"
-                            disabled={locked || (!!plan && processingPlanId === plan.id)}
-                            onClick={() => plan && handleJoinPlan(plan)}
+                            disabled={locked || processingPlanId === plan.id}
+                            onClick={() => handleJoinPlan(plan)}
                             className={`${locked ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-700 text-white'}`}
                           >
-                            {plan && processingPlanId === plan.id ? 'Joining...' : 'Join now'}
+                            {processingPlanId === plan.id ? 'Joining...' : 'Join now'}
                           </Button>
                         </div>
                       </div>

@@ -42,9 +42,12 @@ export const Withdraw = () => {
   // Preset amounts like in reference image
   const presetAmounts = [30, 50, 100, 300, 500, 1000, 3000, 5000, 10000, 20000, 30000, 50000];
 
+  const [withdrawalMethods, setWithdrawalMethods] = useState<WithdrawalMethod[]>([]);
+
   useEffect(() => {
     fetchUserData();
     fetchWalletBalance();
+    fetchWithdrawalMethods();
   }, []);
 
   const fetchUserData = async () => {
@@ -69,33 +72,69 @@ export const Withdraw = () => {
 
   const fetchWalletBalance = async () => {
     try {
-      // In a real app, fetch from database
-      setWalletBalance(25000); // Demo balance
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Get user's wallet balance from database
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('income_wallet_balance')
+          .eq('auth_user_id', user.id)
+          .single();
+
+        if (error) throw error;
+        setWalletBalance(userData?.income_wallet_balance || 0);
+      }
     } catch (error) {
       console.error('Error fetching wallet balance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load wallet balance",
+        variant: "destructive"
+      });
     }
   };
 
-  const withdrawalMethods: WithdrawalMethod[] = [
-    {
-      id: "1",
-      name: "Easypaisa",
-      icon: "📱",
-      is_active: true,
-      min_amount: 30,
-      max_amount: 500000,
-      fee_percentage: 2.5
-    },
-    {
-      id: "2", 
-      name: "JazzCash",
-      icon: "📱",
-      is_active: true,
-      min_amount: 30,
-      max_amount: 500000,
-      fee_percentage: 2.0
+  const fetchWithdrawalMethods = async () => {
+    try {
+      // Fetch withdrawal methods from the database
+      const { data: methodsData, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('is_active', true);
+        // Removed .eq('supports_withdrawal', true) as this field doesn't exist in the schema
+
+      if (error) throw error;
+      
+      if (methodsData && methodsData.length > 0) {
+        // Transform to match the WithdrawalMethod interface
+        const formattedMethods = methodsData.map(method => ({
+          id: method.id,
+          name: method.name,
+          icon: method.logo_url || "📱", // Using logo_url from the database
+          is_active: method.is_active,
+          min_amount: 30, // Default minimum amount
+          max_amount: 500000, // Default maximum amount
+          fee_percentage: 2.0 // Default fee percentage
+        }));
+        
+        setWithdrawalMethods(formattedMethods);
+      } else {
+        // Fallback if no withdrawal methods are found
+        toast({
+          title: "No Withdrawal Methods",
+          description: "No active withdrawal methods are available at this time.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching withdrawal methods:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load withdrawal methods",
+        variant: "destructive"
+      });
     }
-  ];
+  };
 
   const calculateFee = (amount: number, feePercentage: number) => {
     return (amount * feePercentage) / 100;
@@ -155,18 +194,80 @@ export const Withdraw = () => {
 
     setLoading(true);
     try {
-      // In a real app, create withdrawal record in database
-      setTimeout(() => {
-        setStep('success');
-        toast({
-          title: "Withdrawal Submitted",
-          description: "Your withdrawal request has been submitted successfully",
-        });
-      }, 2000);
+      // Get current authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      // Resolve app user (internal users.id) by auth_user_id
+      const { data: dbUser, error: userErr } = await supabase
+        .from('users')
+        .select('id, income_wallet_balance')
+        .eq('auth_user_id', user.id)
+        .single();
+      if (userErr || !dbUser) {
+        throw new Error('User not found');
+      }
+
+      // Create withdrawal record in database (returning inserted row)
+      const { data: insertedWithdrawals, error: insertErr } = await (supabase as unknown as any)
+        .from('withdrawals')
+        .insert([
+          {
+            user_id: dbUser.id,
+            payment_method: withdrawalData.method,
+            amount: withdrawalData.amount,
+            account_number: withdrawalData.phone_number,
+            status: 'pending'
+          }
+        ])
+        .select();
+
+      if (insertErr) throw insertErr;
+
+      const createdWithdrawal = insertedWithdrawals?.[0];
+
+      // Update user's wallet balance using latest balance from DB
+      const newBalance = (dbUser.income_wallet_balance || 0) - withdrawalData.amount;
+      const { error: balanceError } = await supabase
+        .from('users')
+        .update({ income_wallet_balance: newBalance })
+        .eq('auth_user_id', user.id);
+
+      if (balanceError) throw balanceError;
+
+      // Create transaction record for this withdrawal
+      const { error: transactionError } = await (supabase as unknown as any)
+        .from('transactions')
+        .insert([{
+          user_id: dbUser.id,
+          amount: -withdrawalData.amount,
+          transaction_type: 'withdrawal',
+          wallet_type: 'income_wallet',
+          reference_id: createdWithdrawal?.id,
+          description: `Withdrawal to ${withdrawalData.method}`,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (transactionError) {
+        console.error('Transaction record error:', transactionError);
+        // Continue even if transaction record fails
+      }
+
+      setStep('success');
+      toast({
+        title: "Withdrawal Submitted",
+        description: "Your withdrawal request has been submitted successfully",
+      });
+
+      // Refresh wallet balance after successful withdrawal
+      fetchWalletBalance();
     } catch (error) {
+      console.error('Withdrawal error:', error);
       toast({
         title: "Error",
-        description: "Failed to submit withdrawal request",
+        description: "Failed to submit withdrawal request: " + (error instanceof Error ? error.message : "Unknown error"),
         variant: "destructive"
       });
     } finally {
@@ -182,8 +283,7 @@ export const Withdraw = () => {
             <CheckCircle className="w-16 h-16 text-success mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-foreground mb-2">Withdrawal Submitted!</h2>
             <p className="text-muted-foreground mb-6">
-              Your withdrawal request of PKR {withdrawalData?.amount.toLocaleString()} has been submitted. 
-              You will receive PKR {withdrawalData?.net_amount.toLocaleString()} after fees.
+              Your request successfully submitted. Now you can check status in /dashboard/records → Withdrawal Record.
             </p>
             <Button 
               onClick={() => {

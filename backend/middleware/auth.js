@@ -78,5 +78,56 @@ export const verifyAdmin = async (req, res, next) => {
   }
 };
 
+export const verifyVipLevel = (requiredLevel) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user.vip_level) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'VIP membership required' 
+        });
+      }
+
+      // Extract VIP level number (e.g., "VIP3" -> 3)
+      const userVipNumber = parseInt(req.user.vip_level.replace('VIP', ''));
+      
+      if (isNaN(userVipNumber) || userVipNumber < requiredLevel) {
+        return res.status(403).json({ 
+          success: false, 
+          message: `VIP level ${requiredLevel} or higher required. Current level: ${req.user.vip_level}` 
+        });
+      }
+      
+      next();
+    } catch (error) {
+      console.error('VIP verification error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Authorization error' 
+      });
+    }
+  };
+};
+
+export const verifyRole = (requiredRole) => {
+  return async (req, res, next) => {
+    try {
+      if (req.user.position_title !== requiredRole) {
+        return res.status(403).json({ 
+          success: false, 
+          message: `${requiredRole} access required` 
+        });
+      }
+      next();
+    } catch (error) {
+      console.error('Role verification error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Authorization error' 
+      });
+    }
+  };
+};
+
 
 

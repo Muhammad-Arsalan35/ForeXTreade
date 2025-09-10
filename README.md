@@ -1,8 +1,10 @@
-# Welcome to your Lovable project
+# FXTrade - EARN WITH TASK
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/df316f9c-552f-44b1-82ce-47e278425076
+**FXTrade** is a comprehensive task-based earning platform where users can earn money by completing tasks and watching videos. The platform features a VIP membership system with multiple levels, referral programs, and secure withdrawal options.
+
+**Tagline**: EARN WITH TASK
 
 ## How can I edit this code?
 

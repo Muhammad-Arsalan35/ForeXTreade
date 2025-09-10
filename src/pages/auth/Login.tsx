@@ -43,19 +43,23 @@ export const Login = () => {
 
     try {
       const formattedPhone = formatPhoneNumber(formData.phone);
+        const emailFormat = `${formData.phone.replace(/\D/g, '')}@fxtrade.app`;
       
-      console.log('Attempting login with:', { phone: formData.phone, formattedPhone });
+      console.log('Attempting login with:', { 
+        phone: formData.phone, 
+        formattedPhone,
+        emailFormat 
+      });
       
-      // Try phone authentication first
+      // Try both phone and email formats to ensure compatibility
       let { data, error } = await supabase.auth.signInWithPassword({
         phone: formattedPhone,
         password: formData.password
       });
 
-      // If phone auth fails, try with email format as fallback
-      if (error && (error.message.includes('email') || error.message.includes('disabled'))) {
-        console.log('Phone auth failed, trying email format...');
-        const emailFormat = `${formData.phone.replace(/\D/g, '')}@taskmaster.app`;
+      // If phone auth fails, try email format
+      if (error) {
+        console.log('Phone auth failed, trying email format...', error.message);
         
         const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
           email: emailFormat,
@@ -76,6 +80,8 @@ export const Login = () => {
           errorMessage = "Phone authentication is currently disabled. Please contact support.";
         } else if (error.message.includes('User not found')) {
           errorMessage = "No account found with this phone number. Please sign up first.";
+        } else if (error.message.includes('Too many requests')) {
+          errorMessage = "Too many login attempts. Please wait a moment and try again.";
         }
         
         toast({
@@ -83,10 +89,13 @@ export const Login = () => {
           description: errorMessage,
           variant: "destructive"
         });
+        setLoading(false);
         return;
       }
 
       if (data.user) {
+        console.log('Login successful for user:', data.user.id);
+        
         // Get user data from localStorage if available
         const userData = localStorage.getItem('userData');
         let userName = "User";
@@ -104,6 +113,9 @@ export const Login = () => {
           title: "Login Successful",
           description: `Welcome back, ${userName}!`,
         });
+        
+        // Navigate immediately - the auth state change will handle the rest
+        console.log('Navigating to dashboard...');
         navigate("/dashboard", { replace: true });
       }
     } catch (error) {
@@ -113,7 +125,6 @@ export const Login = () => {
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -126,8 +137,8 @@ export const Login = () => {
           <div className="w-20 h-20 bg-gradient-golden rounded-full mx-auto mb-4 flex items-center justify-center shadow-golden">
             <Globe className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-primary-foreground mb-2">TaskMaster</h1>
-          <p className="text-primary-foreground/80">VIP Task Management Platform</p>
+          <h1 className="text-3xl font-bold text-primary-foreground mb-2">FXTrade</h1>
+          <p className="text-primary-foreground/80">EARN WITH TASK</p>
         </div>
 
         <Card className="shadow-elegant border-primary/20">

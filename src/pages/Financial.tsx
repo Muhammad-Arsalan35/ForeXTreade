@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Wallet, 
   TrendingUp, 
@@ -14,109 +14,247 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
-const walletData = [
-  {
-    title: "Income Wallet",
-    balance: "5,855.00",
-    change: "+1,240.00 today",
-    changeType: "positive" as const
-  },
-  {
-    title: "Personal Wallet", 
-    balance: "0.00",
-    change: "No transactions",
-    changeType: "neutral" as const
-  }
-];
+interface WalletData {
+  title: string;
+  balance: string;
+  change: string;
+  changeType: "positive" | "negative" | "neutral";
+}
 
-const transactionHistory = [
-  {
-    id: 1,
-    type: "revenue",
-    description: "Income from successful placement transactions",
-    amount: "+24,000.00",
-    date: "05/08/2025 09:09:36",
-    status: "completed"
-  },
-  {
-    id: 2,
-    type: "expenditure", 
-    description: "Apply for withdrawal",
-    amount: "-1,500.00",
-    date: "05/08/2025 08:45:12",
-    status: "processing"
-  },
-  {
-    id: 3,
-    type: "revenue",
-    description: "Commission rebate for successful lower-level order placement",
-    amount: "+1,080.00", 
-    date: "05/08/2025 07:30:25",
-    status: "completed"
-  },
-  {
-    id: 4,
-    type: "expenditure",
-    description: "Job security deposit",
-    amount: "-4,000.00",
-    date: "04/08/2025 15:22:18",
-    status: "completed"
-  },
-  {
-    id: 5,
-    type: "expenditure",
-    description: "Administrator background deduction",
-    amount: "-500.00",
-    date: "04/08/2025 12:15:42",
-    status: "completed"
-  }
-];
-
-const earningsBreakdown = [
-  {
-    category: "Yesterday's earnings",
-    amount: "320.00",
-    color: "text-primary"
-  },
-  {
-    category: "Today's earnings",
-    amount: "450.00", 
-    color: "text-success"
-  },
-  {
-    category: "This week's earnings",
-    amount: "2,100.00",
-    color: "text-primary"
-  },
-  {
-    category: "This month's earnings", 
-    amount: "8,750.00",
-    color: "text-success"
-  },
-  {
-    category: "Total revenue",
-    amount: "35,240.00",
-    color: "text-primary-deep"
-  },
-  {
-    category: "Task commission from team",
-    amount: "2,340.00",
-    color: "text-accent"
-  },
-  {
-    category: "Recommended income",
-    amount: "1,890.00",
-    color: "text-secondary-deep"
-  },
-  {
-    category: "Job security deposit",
-    amount: "5,000.00",
-    color: "text-muted-foreground"
-  }
-];
+interface Transaction {
+  id: string;
+  type: "revenue" | "expenditure";
+  description: string;
+  amount: string;
+  date: string;
+  status: string;
+}
 
 export const Financial = () => {
+  const [walletData, setWalletData] = useState<WalletData[]>([]);
+  const [transactionHistory, setTransactionHistory] = useState<Transaction[]>([]);
+  const [earningsBreakdown, setEarningsBreakdown] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchFinancialData();
+  }, []);
+
+  useEffect(() => {
+    let walletsChannel: any;
+    let transactionsChannel: any;
+    let transactionsChannelAuth: any;
+    let userTasksChannel: any;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Resolve internal user id
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single();
+      const internalUserId = dbUser?.id || user.id;
+
+      walletsChannel = (supabase as unknown as any)
+        .channel('wallets-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users', filter: `id=eq.${internalUserId}` },
+          () => fetchFinancialData()
+        )
+        .subscribe();
+
+      transactionsChannel = (supabase as unknown as any)
+        .channel('transactions-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${internalUserId}` },
+          () => fetchFinancialData()
+        )
+        .subscribe();
+
+      // Also subscribe using auth user id in case transactions.user_id stores auth id
+      transactionsChannelAuth = (supabase as unknown as any)
+        .channel('transactions-realtime-auth')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
+          () => fetchFinancialData()
+        )
+        .subscribe();
+
+      userTasksChannel = (supabase as unknown as any)
+        .channel('user-tasks-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${internalUserId}` },
+          () => fetchFinancialData()
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      try {
+        if (walletsChannel) (supabase as unknown as any).removeChannel(walletsChannel);
+        if (transactionsChannel) (supabase as unknown as any).removeChannel(transactionsChannel);
+        if (transactionsChannelAuth) (supabase as unknown as any).removeChannel(transactionsChannelAuth);
+        if (userTasksChannel) (supabase as unknown as any).removeChannel(userTasksChannel);
+      } catch {}
+    };
+  }, []);
+
+  const fetchFinancialData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/login');
+        return;
+      }
+
+      // Resolve internal user id for relational tables
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id, income_wallet_balance, personal_wallet_balance')
+        .eq('auth_user_id', user.id)
+        .single();
+      const internalUserId = dbUser?.id || user.id;
+
+      // Fetch user financial data
+      const userData = dbUser as any;
+      const userError = null as any;
+
+      if (userError) throw userError;
+
+      // Format wallet data
+      const wallets = [
+        {
+          title: "Income Wallet",
+          balance: (userData.income_wallet_balance || 0).toFixed(2),
+          change: "Updated from database",
+          changeType: "neutral" as const
+        },
+        {
+          title: "Personal Wallet", 
+          balance: (userData.personal_wallet_balance || 0).toFixed(2),
+          change: "Updated from database",
+          changeType: "neutral" as const
+        }
+      ];
+      setWalletData(wallets);
+
+      // Fetch transactions
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*')
+        .or(`user_id.eq.${internalUserId},user_id.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (transactionsError) {
+        console.error('Error fetching transactions:', transactionsError);
+      } else {
+        // Format transactions
+        const revenueTypes = new Set([
+          'deposit', 'task_reward', 'referral_commission', 'vip_upgrade', 'bonus_reward', 'refund'
+        ]);
+        const expenditureTypes = new Set([
+          'withdrawal', 'admin_adjustment', 'security_deposit', 'tax_deduction', 'penalty'
+        ]);
+        const formattedTransactions = transactionsData?.map((transaction: any) => ({
+          id: transaction.id,
+          type: revenueTypes.has(transaction.transaction_type) ? 'revenue' : 'expenditure',
+          description: transaction.description,
+          amount: `${revenueTypes.has(transaction.transaction_type) ? '+' : '-'}${Number(transaction.amount || 0).toFixed(2)}`,
+          date: new Date(transaction.created_at).toLocaleString(),
+          status: transaction.status
+        })) || [];
+        
+        setTransactionHistory(formattedTransactions);
+      }
+
+      // Calculate earnings breakdown from user_tasks (completed) within time ranges (UTC boundaries)
+      const toUtcStartOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+      const toUtcEndOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+
+      const now = new Date();
+      const startOfDay = toUtcStartOfDay(now);
+      const endOfDay = toUtcEndOfDay(now);
+
+      const yd = new Date(now); yd.setUTCDate(yd.getUTCDate() - 1);
+      const startOfYesterday = toUtcStartOfDay(yd);
+      const endOfYesterday = toUtcEndOfDay(yd);
+
+      const wd = new Date(now); wd.setUTCDate(wd.getUTCDate() - 6);
+      const startOfWeek = toUtcStartOfDay(wd);
+
+      const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+
+      const fetchTaskSum = async (from: Date, to: Date) => {
+        const { data } = await supabase
+          .from('user_tasks')
+          .select('reward_earned, completed_at, status')
+          .eq('user_id', internalUserId)
+          .eq('status', 'completed')
+          .gte('completed_at', from.toISOString())
+          .lte('completed_at', to.toISOString());
+        // Some rows may store reward_earned as null. If so, estimate via active plan rate when missing.
+        const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.reward_earned) || 0), 0);
+        return sum;
+      };
+
+      const revenueTypesArr = ['deposit','task_reward','referral_commission','vip_upgrade','bonus_reward','refund'];
+      const fetchRevenueSum = async (from: Date, to: Date) => {
+        const { data } = await supabase
+          .from('transactions')
+          .select('amount, transaction_type, status')
+          .or(`user_id.eq.${internalUserId},user_id.eq.${user.id}`)
+          .in('transaction_type', revenueTypesArr)
+          .gte('created_at', from.toISOString())
+          .lte('created_at', to.toISOString());
+        const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.amount) || 0), 0);
+        return sum;
+      };
+
+      let [todaySum, yesterdaySum, weekSum, monthSum] = await Promise.all([
+        fetchTaskSum(startOfDay, endOfDay),
+        fetchTaskSum(startOfYesterday, endOfYesterday),
+        fetchTaskSum(startOfWeek, endOfDay),
+        fetchTaskSum(startOfMonth, endOfDay)
+      ]);
+
+      // Fallback to transactions if task-based sums are zero (or reward_earned not populated)
+      if (todaySum === 0) todaySum = await fetchRevenueSum(startOfDay, endOfDay);
+      if (yesterdaySum === 0) yesterdaySum = await fetchRevenueSum(startOfYesterday, endOfYesterday);
+      if (weekSum === 0) weekSum = await fetchRevenueSum(startOfWeek, endOfDay);
+      if (monthSum === 0) monthSum = await fetchRevenueSum(startOfMonth, endOfDay);
+
+      setEarningsBreakdown([
+        { category: "Yesterday's earnings", amount: yesterdaySum.toFixed(2), color: "text-primary" },
+        { category: "Today's earnings", amount: todaySum.toFixed(2), color: "text-success" },
+        { category: "This week's earnings", amount: weekSum.toFixed(2), color: "text-primary" },
+        { category: "This month's earnings", amount: monthSum.toFixed(2), color: "text-success" },
+        { category: "Total revenue", amount: (userData.income_wallet_balance || 0).toFixed(2), color: "text-primary-deep" }
+      ]);
+
+    } catch (error) {
+      console.error('Error fetching financial data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load financial data. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
   const [filterType, setFilterType] = useState("all");
 
   const filteredTransactions = transactionHistory.filter(transaction => {

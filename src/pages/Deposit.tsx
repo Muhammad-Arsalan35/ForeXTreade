@@ -59,24 +59,26 @@ export const Deposit = () => {
 
   const fetchPaymentMethods = async () => {
     try {
-      // For now, using sample data since we don't have the database set up
-      const sampleMethods: PaymentMethod[] = [
-        {
-          id: '1',
-          name: 'Easypaisa',
-          account_number: '01354',
-          is_active: true
-        },
-        {
-          id: '2',
-          name: 'JazzCash',
-          account_number: '03093272546',
-          is_active: true
-        }
-      ];
+      // Fetch payment methods from the database
+      const { data: methodsData, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('is_active', true);
+
+      if (error) throw error;
       
-      setPaymentMethods(sampleMethods);
+      if (methodsData && methodsData.length > 0) {
+        setPaymentMethods(methodsData);
+      } else {
+        // Fallback if no payment methods are found
+        toast({
+          title: "No Payment Methods",
+          description: "No active payment methods are available at this time.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
+      console.error('Error fetching payment methods:', error);
       toast({
         title: "Error",
         description: "Failed to load payment methods",
