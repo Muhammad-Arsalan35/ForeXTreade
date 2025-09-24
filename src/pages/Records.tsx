@@ -226,6 +226,8 @@ export const Records = () => {
     return filtered.reduce((sum, record) => sum + parseFloat(record.amount.replace(/,/g, '')), 0);
   };
 
+
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6">
@@ -458,3 +460,4 @@ export const Records = () => {
     </div>
   );
 };
+

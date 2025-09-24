@@ -28,8 +28,10 @@ export const useAuth = () => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
+      console.log('useAuth: Getting initial session...');
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('useAuth: Initial session result:', session?.user?.id ? 'User found' : 'No user');
         
         if (session?.user) {
           setUser(session.user);
@@ -38,6 +40,7 @@ export const useAuth = () => {
       } catch (error) {
         console.error('Error getting initial session:', error);
       } finally {
+        console.log('useAuth: Setting loading to false');
         setLoading(false);
       }
     };
@@ -78,17 +81,26 @@ export const useAuth = () => {
   }, [navigate, toast]);
 
   const fetchUserProfile = async (userId: string) => {
+    console.log('useAuth: Fetching user profile for:', userId);
     try {
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const profilePromise = supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', userId)
         .single();
 
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
+      );
+
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
+      console.log('useAuth: Profile fetch result:', error ? 'Error' : 'Success');
+
       if (error) {
         console.error('Error fetching user profile:', error);
         
-        // If profile doesn't exist, create a default one
+        // If profile doesn't exist, create a default one with 0.00 values
         if (error.code === 'PGRST116') {
           console.log('User profile not found, creating default profile');
           const defaultProfile = {
@@ -98,7 +110,14 @@ export const useAuth = () => {
             phone_number: '',
             vip_level: 'VIP1',
             user_status: 'active',
-            referral_code: Math.floor(100000 + Math.random() * 900000).toString()
+            referral_code: Math.floor(100000 + Math.random() * 900000).toString(),
+            personal_wallet_balance: 0.00,
+            income_wallet_balance: 0.00,
+            total_earnings: 0.00,
+            tasks_completed_today: 0,
+            daily_task_limit: 5,
+            referral_count: 0,
+            position_title: 'Member'
           };
           
           const { data: insertData, error: insertError } = await supabase
@@ -114,6 +133,18 @@ export const useAuth = () => {
             console.log('Default profile created:', insertData);
             setProfile(insertData);
           }
+        } else {
+          // For other errors, set a minimal profile to prevent blocking
+          const minimalProfile = {
+            auth_user_id: userId,
+            full_name: 'User',
+            username: 'user',
+            phone_number: '',
+            vip_level: 'VIP1',
+            user_status: 'active',
+            referral_code: Math.floor(100000 + Math.random() * 900000).toString()
+          };
+          setProfile(minimalProfile as any);
         }
         return;
       }
@@ -121,11 +152,26 @@ export const useAuth = () => {
       setProfile(data);
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      // Set a minimal profile to prevent blocking
+      const minimalProfile = {
+        auth_user_id: userId,
+        full_name: 'User',
+        username: 'user',
+        phone_number: '',
+        vip_level: 'VIP1',
+        user_status: 'active',
+        referral_code: Math.floor(100000 + Math.random() * 900000).toString()
+      };
+      setProfile(minimalProfile as any);
     }
   };
 
   const signOut = async () => {
     try {
+      // Clear task completion cache
+      const { taskCompletionService } = await import('@/services/taskCompletionService');
+      taskCompletionService.clearCache();
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error);

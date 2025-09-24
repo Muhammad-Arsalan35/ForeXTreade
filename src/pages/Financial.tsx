@@ -49,8 +49,8 @@ export const Financial = () => {
   useEffect(() => {
     let walletsChannel: any;
     let transactionsChannel: any;
-    let transactionsChannelAuth: any;
-    let userTasksChannel: any;
+    let taskCompletionsChannel: any;
+    
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -63,7 +63,8 @@ export const Financial = () => {
         .single();
       const internalUserId = dbUser?.id || user.id;
 
-      walletsChannel = (supabase as unknown as any)
+      // Subscribe to real-time updates
+      walletsChannel = (supabase as any)
         .channel('wallets-realtime')
         .on(
           'postgres_changes',
@@ -72,7 +73,7 @@ export const Financial = () => {
         )
         .subscribe();
 
-      transactionsChannel = (supabase as unknown as any)
+      transactionsChannel = (supabase as any)
         .channel('transactions-realtime')
         .on(
           'postgres_changes',
@@ -81,21 +82,11 @@ export const Financial = () => {
         )
         .subscribe();
 
-      // Also subscribe using auth user id in case transactions.user_id stores auth id
-      transactionsChannelAuth = (supabase as unknown as any)
-        .channel('transactions-realtime-auth')
+      taskCompletionsChannel = (supabase as any)
+        .channel('task-completions-realtime')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
-          () => fetchFinancialData()
-        )
-        .subscribe();
-
-      userTasksChannel = (supabase as unknown as any)
-        .channel('user-tasks-realtime')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${internalUserId}` },
+          { event: '*', schema: 'public', table: 'task_completions', filter: `user_id=eq.${internalUserId}` },
           () => fetchFinancialData()
         )
         .subscribe();
@@ -103,10 +94,9 @@ export const Financial = () => {
 
     return () => {
       try {
-        if (walletsChannel) (supabase as unknown as any).removeChannel(walletsChannel);
-        if (transactionsChannel) (supabase as unknown as any).removeChannel(transactionsChannel);
-        if (transactionsChannelAuth) (supabase as unknown as any).removeChannel(transactionsChannelAuth);
-        if (userTasksChannel) (supabase as unknown as any).removeChannel(userTasksChannel);
+        if (walletsChannel) (supabase as any).removeChannel(walletsChannel);
+        if (transactionsChannel) (supabase as any).removeChannel(transactionsChannel);
+        if (taskCompletionsChannel) (supabase as any).removeChannel(taskCompletionsChannel);
       } catch {}
     };
   }, []);
@@ -122,28 +112,27 @@ export const Financial = () => {
       // Resolve internal user id for relational tables
       const { data: dbUser } = await supabase
         .from('users')
-        .select('id, income_wallet_balance, personal_wallet_balance')
+        .select('id, income_wallet_balance, personal_wallet_balance, total_earnings')
         .eq('auth_user_id', user.id)
         .single();
+      
       const internalUserId = dbUser?.id || user.id;
 
-      // Fetch user financial data
-      const userData = dbUser as any;
-      const userError = null as any;
-
-      if (userError) throw userError;
+      if (!dbUser) {
+        throw new Error('User data not found');
+      }
 
       // Format wallet data
       const wallets = [
         {
           title: "Income Wallet",
-          balance: (userData.income_wallet_balance || 0).toFixed(2),
+          balance: (dbUser.income_wallet_balance || 0).toFixed(2),
           change: "Updated from database",
           changeType: "neutral" as const
         },
         {
           title: "Personal Wallet", 
-          balance: (userData.personal_wallet_balance || 0).toFixed(2),
+          balance: (dbUser.personal_wallet_balance || 0).toFixed(2),
           change: "Updated from database",
           changeType: "neutral" as const
         }
@@ -151,76 +140,94 @@ export const Financial = () => {
       setWalletData(wallets);
 
       // Fetch transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
+      const { data: transactionsData, error: transactionsError } = await (supabase as any)
         .from('transactions')
         .select('*')
-        .or(`user_id.eq.${internalUserId},user_id.eq.${user.id}`)
+        .eq('user_id', internalUserId)
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (transactionsError) {
-        console.error('Error fetching transactions:', transactionsError);
+        console.log('Transactions table not found or error:', transactionsError);
+        setTransactionHistory([]);
       } else {
         // Format transactions
         const revenueTypes = new Set([
           'deposit', 'task_reward', 'referral_commission', 'vip_upgrade', 'bonus_reward', 'refund'
         ]);
-        const expenditureTypes = new Set([
-          'withdrawal', 'admin_adjustment', 'security_deposit', 'tax_deduction', 'penalty'
-        ]);
+        
         const formattedTransactions = transactionsData?.map((transaction: any) => ({
           id: transaction.id,
-          type: revenueTypes.has(transaction.transaction_type) ? 'revenue' : 'expenditure',
-          description: transaction.description,
+          type: (revenueTypes.has(transaction.transaction_type) ? 'revenue' : 'expenditure') as "revenue" | "expenditure",
+          description: transaction.description || transaction.transaction_type,
           amount: `${revenueTypes.has(transaction.transaction_type) ? '+' : '-'}${Number(transaction.amount || 0).toFixed(2)}`,
           date: new Date(transaction.created_at).toLocaleString(),
-          status: transaction.status
+          status: transaction.status || 'completed'
         })) || [];
         
         setTransactionHistory(formattedTransactions);
       }
 
-      // Calculate earnings breakdown from user_tasks (completed) within time ranges (UTC boundaries)
-      const toUtcStartOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
-      const toUtcEndOfDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
-
+      // Calculate earnings breakdown from task_completions
       const now = new Date();
-      const startOfDay = toUtcStartOfDay(now);
-      const endOfDay = toUtcEndOfDay(now);
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-      const yd = new Date(now); yd.setUTCDate(yd.getUTCDate() - 1);
-      const startOfYesterday = toUtcStartOfDay(yd);
-      const endOfYesterday = toUtcEndOfDay(yd);
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0, 0);
+      const endOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
 
-      const wd = new Date(now); wd.setUTCDate(wd.getUTCDate() - 6);
-      const startOfWeek = toUtcStartOfDay(wd);
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() - 6);
+      const startOfWeek = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate(), 0, 0, 0, 0);
 
-      const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
 
       const fetchTaskSum = async (from: Date, to: Date) => {
-        const { data } = await supabase
-          .from('user_tasks')
-          .select('reward_earned, completed_at, status')
-          .eq('user_id', internalUserId)
-          .eq('status', 'completed')
-          .gte('completed_at', from.toISOString())
-          .lte('completed_at', to.toISOString());
-        // Some rows may store reward_earned as null. If so, estimate via active plan rate when missing.
-        const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.reward_earned) || 0), 0);
-        return sum;
+        try {
+          const { data, error } = await (supabase as any)
+            .from('task_completions')
+            .select('reward_earned, completed_at')
+            .eq('user_id', internalUserId)
+            .gte('completed_at', from.toISOString())
+            .lte('completed_at', to.toISOString());
+          
+          if (error) {
+            console.log('Task completions table not found, using fallback');
+            return 0;
+          }
+          
+          const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.reward_earned) || 0), 0);
+          return sum;
+        } catch (err) {
+          console.log('Error fetching task completions:', err);
+          return 0;
+        }
       };
 
       const revenueTypesArr = ['deposit','task_reward','referral_commission','vip_upgrade','bonus_reward','refund'];
       const fetchRevenueSum = async (from: Date, to: Date) => {
-        const { data } = await supabase
-          .from('transactions')
-          .select('amount, transaction_type, status')
-          .or(`user_id.eq.${internalUserId},user_id.eq.${user.id}`)
-          .in('transaction_type', revenueTypesArr)
-          .gte('created_at', from.toISOString())
-          .lte('created_at', to.toISOString());
-        const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.amount) || 0), 0);
-        return sum;
+        try {
+          const { data, error } = await (supabase as any)
+            .from('transactions')
+            .select('amount, transaction_type, status')
+            .eq('user_id', internalUserId)
+            .in('transaction_type', revenueTypesArr)
+            .gte('created_at', from.toISOString())
+            .lte('created_at', to.toISOString());
+          
+          if (error) {
+            console.log('Transactions table not found, using fallback');
+            return 0;
+          }
+          
+          const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.amount) || 0), 0);
+          return sum;
+        } catch (err) {
+          console.log('Error fetching transactions:', err);
+          return 0;
+        }
       };
 
       let [todaySum, yesterdaySum, weekSum, monthSum] = await Promise.all([
@@ -230,7 +237,7 @@ export const Financial = () => {
         fetchTaskSum(startOfMonth, endOfDay)
       ]);
 
-      // Fallback to transactions if task-based sums are zero (or reward_earned not populated)
+      // Fallback to transactions if task-based sums are zero
       if (todaySum === 0) todaySum = await fetchRevenueSum(startOfDay, endOfDay);
       if (yesterdaySum === 0) yesterdaySum = await fetchRevenueSum(startOfYesterday, endOfYesterday);
       if (weekSum === 0) weekSum = await fetchRevenueSum(startOfWeek, endOfDay);
@@ -241,7 +248,7 @@ export const Financial = () => {
         { category: "Today's earnings", amount: todaySum.toFixed(2), color: "text-success" },
         { category: "This week's earnings", amount: weekSum.toFixed(2), color: "text-primary" },
         { category: "This month's earnings", amount: monthSum.toFixed(2), color: "text-success" },
-        { category: "Total revenue", amount: (userData.income_wallet_balance || 0).toFixed(2), color: "text-primary-deep" }
+        { category: "Total revenue", amount: (dbUser.total_earnings || dbUser.income_wallet_balance || 0).toFixed(2), color: "text-primary-deep" }
       ]);
 
     } catch (error) {
@@ -255,12 +262,26 @@ export const Financial = () => {
       setLoading(false);
     }
   };
+
   const [filterType, setFilterType] = useState("all");
 
   const filteredTransactions = transactionHistory.filter(transaction => {
     if (filterType === "all") return true;
     return transaction.type === filterType;
   });
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading financial data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -269,6 +290,21 @@ export const Financial = () => {
         <h1 className="text-3xl font-bold mb-2">Financial Records</h1>
         <p className="text-muted-foreground">Manage your earnings and transactions</p>
       </div>
+
+      {/* Database Setup Notice */}
+      {transactionHistory.length === 0 && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <p className="text-sm text-yellow-800">
+                <strong>Database Setup Required:</strong> The task_completions and transactions tables need to be created in your Supabase database. 
+                Once set up, your earnings data will be displayed here automatically.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Wallet Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -343,37 +379,43 @@ export const Financial = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {filteredTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      transaction.type === 'revenue' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-                    }`}>
-                      {transaction.type === 'revenue' ? 
-                        <ArrowUpRight className="w-5 h-5" /> : 
-                        <ArrowDownLeft className="w-5 h-5" />
-                      }
-                    </div>
-                    <div>
-                      <p className="font-medium">{transaction.description}</p>
-                      <p className="text-sm text-muted-foreground">{transaction.date}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${
-                      transaction.type === 'revenue' ? 'text-success' : 'text-destructive'
-                    }`}>
-                      {transaction.amount} PKR
-                    </p>
-                    <Badge variant={
-                      transaction.status === 'completed' ? 'default' : 
-                      transaction.status === 'processing' ? 'secondary' : 'destructive'
-                    }>
-                      {transaction.status}
-                    </Badge>
-                  </div>
+              {filteredTransactions.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No transactions found</p>
                 </div>
-              ))}
+              ) : (
+                filteredTransactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        transaction.type === 'revenue' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
+                      }`}>
+                        {transaction.type === 'revenue' ? 
+                          <ArrowUpRight className="w-5 h-5" /> : 
+                          <ArrowDownLeft className="w-5 h-5" />
+                        }
+                      </div>
+                      <div>
+                        <p className="font-medium">{transaction.description}</p>
+                        <p className="text-sm text-muted-foreground">{transaction.date}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-bold ${
+                        transaction.type === 'revenue' ? 'text-success' : 'text-destructive'
+                      }`}>
+                        {transaction.amount} PKR
+                      </p>
+                      <Badge variant={
+                        transaction.status === 'completed' ? 'default' : 
+                        transaction.status === 'processing' ? 'secondary' : 'destructive'
+                      }>
+                        {transaction.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>

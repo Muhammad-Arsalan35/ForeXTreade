@@ -24,25 +24,27 @@ import NotFound from "./pages/NotFound";
 import { Logout } from "./pages/auth/Logout";
 import Admin from "./pages/Admin";
 import { AdminVideos } from "./pages/AdminVideos";
+import { ErrorDebug } from '@/components/debug/ErrorDebug';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { AuthProvider } from './components/AuthProvider';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
         <BrowserRouter>
-          <AuthProvider>
-            <Routes>
+          <Routes>
             {/* Public routes */}
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/debug" element={<ErrorDebug />} />
             <Route path="/:referralCode" element={<Signup />} />
             
             {/* Protected routes with AppLayout */}
@@ -108,10 +110,10 @@ function App() {
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
             </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

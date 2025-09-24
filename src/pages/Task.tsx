@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserActivity } from "@/hooks/useUserActivity";
+import { useTaskCompletion } from "@/hooks/useTaskCompletion";
 import taskCommercial from "@/assets/task-commercial.jpg";
 
 interface Task {
@@ -54,11 +55,18 @@ export const Task = () => {
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [membershipPlan, setMembershipPlan] = useState<MembershipPlan | null>(null);
-  const [completedTodayIds, setCompletedTodayIds] = useState<string[]>([]);
-  const [todayKey, setTodayKey] = useState<string>('');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { trackPageView, trackTaskCompletion, trackActivity } = useUserActivity();
+  const { 
+    dailyStats, 
+    loading: taskLoading, 
+    completeTask, 
+    completedTaskIds, 
+    completedToday, 
+    dailyLimit, 
+    remainingTasks 
+  } = useTaskCompletion();
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastTasksRefreshAtRef = useRef<number>(0);
   const lastCompletionsRefreshAtRef = useRef<number>(0);
@@ -70,19 +78,16 @@ export const Task = () => {
   useEffect(() => {
     fetchUserLevel();
     fetchMembershipPlan();
-    loadCompletedToday();
-    loadCompletedTodayFromDb(); // Load from database on initial load
-    setTodayKey(getTodayKey());
     
     // Track page view
     trackPageView('/task');
-    // subscribe to realtime updates
+    
+    // Subscribe to real-time updates for tasks and plans
     let tasksChannel: any;
-    let userTasksChannel: any;
     let videosChannel: any;
     let plansChannel: any;
     let usersChannel: any;
-    let taskCompletionsChannel: any;
+    
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -102,17 +107,6 @@ export const Task = () => {
           if (now - lastTasksRefreshAtRef.current > THROTTLE_MS) {
             lastTasksRefreshAtRef.current = now;
             void fetchTasksForPlan();
-          }
-        })
-        .subscribe();
-
-      userTasksChannel = (supabase as unknown as any)
-        .channel('rt-user-tasks')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${internalUserId}` }, () => {
-          const now = Date.now();
-          if (now - lastCompletionsRefreshAtRef.current > THROTTLE_MS) {
-            lastCompletionsRefreshAtRef.current = now;
-            void loadCompletedTodayFromDb();
           }
         })
         .subscribe();
@@ -149,55 +143,36 @@ export const Task = () => {
           }
         })
         .subscribe();
-
-      // Subscribe to task_completions for real-time updates
-      taskCompletionsChannel = (supabase as unknown as any)
-        .channel('rt-task-completions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_completions', filter: `user_id=eq.${internalUserId}` }, () => {
-          const now = Date.now();
-          if (now - lastCompletionsRefreshAtRef.current > THROTTLE_MS) {
-            lastCompletionsRefreshAtRef.current = now;
-            void loadCompletedTodayFromDb();
-          }
-        })
-        .subscribe();
     })();
 
     return () => {
       try {
         if (tasksChannel) (supabase as unknown as any).removeChannel(tasksChannel);
-        if (userTasksChannel) (supabase as unknown as any).removeChannel(userTasksChannel);
         if (videosChannel) (supabase as unknown as any).removeChannel(videosChannel);
         if (plansChannel) (supabase as unknown as any).removeChannel(plansChannel);
         if (usersChannel) (supabase as unknown as any).removeChannel(usersChannel);
-        if (taskCompletionsChannel) (supabase as unknown as any).removeChannel(taskCompletionsChannel);
       } catch {}
     };
   }, []);
 
-  // Detect date change while app is open and reset today's completions
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const key = getTodayKey();
-      if (key !== todayKey) {
-        setTodayKey(key);
-        loadCompletedToday();
-      }
-    }, 60000); // check every 60s
-    return () => clearInterval(timer);
-  }, [todayKey]);
-
   useEffect(() => {
     if (membershipPlan) {
-      // Always refresh both DB and local completions before computing lists
-      (async () => {
-        await loadCompletedTodayFromDb();
-        await fetchTasksForPlan();
-      })();
+      fetchTasksForPlan();
     } else {
       setTasks(sampleTasks);
     }
   }, [membershipPlan]);
+
+  // Update task status based on completed tasks
+  useEffect(() => {
+    if (completedTaskIds.length > 0) {
+      setTasks(prev => prev.map(task => 
+        completedTaskIds.includes(task.id) 
+          ? { ...task, status: 'completed' as const }
+          : task
+      ));
+    }
+  }, [completedTaskIds]);
 
   const fetchUserLevel = async () => {
     try {
@@ -384,107 +359,10 @@ export const Task = () => {
     }
   };
 
-  // Daily-completion tracking (local only)
-  const getTodayKey = () => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  const loadCompletedToday = () => {
-    try {
-      const key = `task_completions_${getTodayKey()}`;
-      const raw = localStorage.getItem(key);
-      const list = raw ? JSON.parse(raw) : [];
-      setCompletedTodayIds(Array.isArray(list) ? list : []);
-    } catch {
-      setCompletedTodayIds([]);
-    }
-  };
-
-  const loadCompletedTodayFromDb = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: dbUser } = await (supabase as any)
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single();
-      const internalUserId = dbUser?.id || user.id;
-
-      const start = new Date(); start.setHours(0,0,0,0);
-      const end = new Date(); end.setHours(23,59,59,999);
-      const { data: ut } = await (supabase as any)
-        .from('user_tasks')
-        .select('task_id, status, completed_at')
-        .eq('user_id', internalUserId)
-        .eq('status', 'completed')
-        .gte('completed_at', start.toISOString())
-        .lte('completed_at', end.toISOString());
-      const idsUserTasks = (ut || []).map((r: any) => r.task_id);
-
-      // Also include fallback completions from optional task_completions table (for non-UUID tasks/videos)
-      const { data: tc } = await (supabase as any)
-        .from('task_completions')
-        .select('task_id, task_key, created_at')
-        .eq('user_id', internalUserId)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-      const idsTaskCompletions = (tc || []).map((r: any) => r.task_id || r.task_key).filter(Boolean);
-
-      // Get completed tasks from transactions table (for video tasks and other completions)
-      const { data: transactions } = await (supabase as any)
-        .from('transactions')
-        .select('description, created_at')
-        .eq('user_id', internalUserId)
-        .eq('transaction_type', 'task_reward')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-      
-      // Extract task IDs from transaction descriptions
-      const idsFromTransactions = (transactions || []).map((t: any) => {
-        const desc = t.description || '';
-        // Try to extract task ID from description like "Task reward: Video Task 1" or "Task reward: <task_title>"
-        if (desc.includes('Video Task')) {
-          const match = desc.match(/Video Task (\d+)/);
-          return match ? `video-${match[1]}` : null;
-        }
-        // For synthetic tasks, extract the number
-        if (desc.includes('Watch & Earn Task')) {
-          const match = desc.match(/Watch & Earn Task (\d+)/);
-          return match ? `synthetic-${match[1]}` : null;
-        }
-        // For other tasks, we'll use the description as a key
-        return desc.replace('Task reward: ', '');
-      }).filter(Boolean);
-
-      // Merge all completion sources and replace completely (don't merge with prev state)
-      const allCompletedIds = Array.from(new Set([...idsUserTasks, ...idsTaskCompletions, ...idsFromTransactions]));
-      
-      // Set completed tasks and save to localStorage
-      setCompletedTodayIds(allCompletedIds);
-      try {
-        const key = `task_completions_${getTodayKey()}`;
-        localStorage.setItem(key, JSON.stringify(allCompletedIds));
-      } catch {}
-    } catch {
-      // ignore
-    }
-  };
-
-  const saveCompletedToday = (ids: string[]) => {
-    try {
-      const key = `task_completions_${getTodayKey()}`;
-      localStorage.setItem(key, JSON.stringify(ids));
-    } catch {}
-  };
 
   const startTask = async (task: Task) => {
     // Prevent starting a task already completed today
-    if (completedTodayIds.includes(task.id)) {
+    if (completedTaskIds.includes(task.id)) {
       toast({
         title: "Already Completed",
         description: "You've already completed this task today.",
@@ -560,7 +438,7 @@ export const Task = () => {
   const submitTask = async (task: Task) => {
     if (!canSubmit) return;
     
-    setLoading(false);
+    setLoading(true);
     setCurrentTask(null);
     setTaskProgress(0);
     setShowVideoPopup(false);
@@ -569,85 +447,43 @@ export const Task = () => {
 
     const actualReward = calculateReward(task.reward);
 
-    // Update task status to completed
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, status: 'completed' } : t
-    ));
+    // Use the new task completion service first
+    const success = await completeTask(
+      task.id, 
+      task.title, 
+      task.id.startsWith('video-') ? 'video' : 
+      task.id.startsWith('synthetic-') ? 'synthetic' : 'real_task',
+      actualReward
+    );
 
-    // Credit income wallet and record completion
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await (supabase as any)
-          .from('users')
-          .select('id,income_wallet_balance,total_earnings')
-          .eq('auth_user_id', user.id)
-          .single();
+    if (success) {
+      // Update task status to completed only after successful completion
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, status: 'completed' } : t
+      ));
 
-        const newIncome = (profile?.income_wallet_balance || 0) + actualReward;
-        const newTotal = (profile?.total_earnings || 0) + actualReward;
+      // Track task completion
+      await trackTaskCompletion(task.id, task.title, actualReward);
 
-        await (supabase as any)
-          .from('users')
-          .update({ income_wallet_balance: newIncome, total_earnings: newTotal })
-          .eq('auth_user_id', user.id);
+      toast({
+        title: "Task Completed!",
+        description: `You earned PKR ${actualReward} (Level ${userLevel.level} bonus applied)`,
+      });
 
-        const internalUserId = profile?.id || user.id;
-
-        // Always record a revenue transaction for reliable financial reporting
-        await (supabase as any)
-          .from('transactions')
-          .insert({
-            user_id: internalUserId,
-            transaction_type: 'task_reward',
-            amount: Number(actualReward || 0),
-            description: `Task reward: ${task.title}`,
-            status: 'completed'
-          });
-
-        // Only write to user_tasks if task.id is a real UUID referencing tasks table
-        const isUuid = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(task.id);
-        if (isUuid) {
-          await (supabase as any)
-            .from('user_tasks')
-            .upsert({
-              user_id: internalUserId,
-              task_id: task.id,
-              status: 'completed',
-              reward_earned: Number(actualReward || 0),
-              completed_at: new Date().toISOString()
-            }, { onConflict: 'user_id,task_id' });
-        }
-
-        // Always record completion in task_completions table for persistence across sessions
-        await (supabase as any)
-          .from('task_completions')
-          .insert({
-            user_id: internalUserId,
-            task_id: task.id,
-            task_key: task.title,
-            reward_earned: Number(actualReward || 0),
-            completed_at: new Date().toISOString()
-          });
-      }
-    } catch (e) {
-      console.warn('Failed to persist task completion; credited locally only.');
+      // Force refresh of daily stats
+      setTimeout(() => {
+        // Trigger a manual refresh of the useTaskCompletion hook
+        window.dispatchEvent(new Event('taskCompleted'));
+      }, 500);
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to complete task. Please try again.",
+        variant: "destructive"
+      });
     }
-
-    // Track task completion
-    await trackTaskCompletion(task.id, task.title, actualReward);
-
-    // Mark task completed for today (persist to local and keep in state)
-    setCompletedTodayIds(prev => {
-      const next = Array.from(new Set([...(prev || []), task.id]));
-      saveCompletedToday(next);
-      return next;
-    });
-
-    toast({
-      title: "Task Completed!",
-      description: `You earned PKR ${actualReward} (Level ${userLevel.level} bonus applied)`,
-    });
+    
+    setLoading(false);
   };
 
   const closeVideoPopup = () => {
@@ -667,56 +503,6 @@ export const Task = () => {
     setVideoError(false);
   };
 
-  const completeTask = async (task: Task) => {
-    setLoading(false);
-    setCurrentTask(null);
-    setTaskProgress(0);
-
-    const actualReward = calculateReward(task.reward);
-
-    // Update task status to completed
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, status: 'completed' } : t
-    ));
-
-    // Credit income wallet and record completion
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await (supabase as any)
-          .from('users')
-          .select('id,income_wallet_balance,total_earnings')
-          .eq('auth_user_id', user.id)
-          .single();
-
-        const newIncome = (profile?.income_wallet_balance || 0) + actualReward;
-        const newTotal = (profile?.total_earnings || 0) + actualReward;
-
-        await (supabase as any)
-          .from('users')
-          .update({ income_wallet_balance: newIncome, total_earnings: newTotal })
-          .eq('auth_user_id', user.id);
-
-        await (supabase as any)
-          .from('task_completions')
-          .insert({ user_id: profile?.id || user.id, task_id: task.id, reward_earned: actualReward });
-      }
-    } catch (e) {
-      console.warn('Failed to persist task completion; credited locally only.');
-    }
-
-    // Mark task completed for today and hide it
-    setCompletedTodayIds(prev => {
-      const next = Array.from(new Set([...prev, task.id]));
-      saveCompletedToday(next);
-      return next;
-    });
-
-    toast({
-      title: "Task Completed!",
-      description: `You earned PKR ${actualReward} (Level ${userLevel.level} bonus applied)`,
-    });
-  };
 
   const getDailyLimit = () => {
     return membershipPlan?.daily_tasks_limit || userLevel.daily_task_limit;
@@ -724,22 +510,22 @@ export const Task = () => {
 
   const getFilteredTasks = (status: string) => {
     const dailyLimit = getDailyLimit();
-    const remaining = Math.max(0, dailyLimit - completedTodayIds.length);
+    const remaining = Math.max(0, dailyLimit - completedToday);
 
     if (status === 'doing') {
       const seen = new Set<string>();
-      const normalizeId = (id: string) => id?.startsWith('video-') ? id.replace(/^video-/, '') : id;
-      const completedSet = new Set(completedTodayIds.map(normalizeId));
-      const inProgress = tasks.filter(t => t.status === 'in_progress' && !completedSet.has(normalizeId(t.id)) && !seen.has(t.id) && (seen.add(t.id), true));
-      const available = tasks.filter(t => t.status === 'available' && !completedSet.has(normalizeId(t.id)) && !seen.has(t.id) && (seen.add(t.id), true));
+      // Use exact ID matching instead of normalization to avoid mismatches
+      const completedSet = new Set(completedTaskIds);
+      const inProgress = tasks.filter(t => t.status === 'in_progress' && !completedSet.has(t.id) && !seen.has(t.id) && (seen.add(t.id), true));
+      const available = tasks.filter(t => t.status === 'available' && !completedSet.has(t.id) && !seen.has(t.id) && (seen.add(t.id), true));
       const availableNeeded = Math.max(0, remaining - inProgress.length);
       return [...inProgress, ...available.slice(0, availableNeeded)];
     }
     if (status === 'completed') {
       const completedSeen = new Set<string>();
-      const normalizeId = (id: string) => id?.startsWith('video-') ? id.replace(/^video-/, '') : id;
-      const completedSet = new Set(completedTodayIds.map(normalizeId));
-      const completed = tasks.filter(t => (completedSet.has(normalizeId(t.id)) || t.status === 'completed') && !completedSeen.has(t.id) && (completedSeen.add(t.id), true));
+      // Use exact ID matching for completed tasks
+      const completedSet = new Set(completedTaskIds);
+      const completed = tasks.filter(t => (completedSet.has(t.id) || t.status === 'completed') && !completedSeen.has(t.id) && (completedSeen.add(t.id), true));
       return completed;
     }
     return [];
@@ -779,7 +565,11 @@ export const Task = () => {
             </Badge>
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            Daily limit: {membershipPlan?.daily_tasks_limit || userLevel.daily_task_limit} tasks
+            Daily limit: {dailyLimit} tasks ({completedToday}/{dailyLimit} completed)
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: completedTaskIds={JSON.stringify(completedTaskIds)}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -813,7 +603,7 @@ export const Task = () => {
               task={task}
               userLevel={userLevel}
               onStart={startTask}
-              onComplete={completeTask}
+              onComplete={submitTask}
               isCurrentTask={currentTask?.id === task.id}
               progress={taskProgress}
               loading={loading}
@@ -837,7 +627,7 @@ export const Task = () => {
               task={task}
               userLevel={userLevel}
               onStart={startTask}
-              onComplete={completeTask}
+              onComplete={submitTask}
               isCurrentTask={false}
               progress={100}
               loading={false}

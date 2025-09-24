@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useUserActivity } from "@/hooks/useUserActivity";
+import { useTaskCompletion } from "@/hooks/useTaskCompletion";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type MembershipPlan = {
   id: string;
@@ -53,6 +55,7 @@ const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { trackPageView, trackVipUpgrade } = useUserActivity();
+  const { completedToday, dailyLimit, remainingTasks } = useTaskCompletion();
 
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfilesRow | null>(null);
@@ -420,82 +423,111 @@ const Dashboard = () => {
         .single();
       const internalUserId = dbUser?.id || user.id;
 
-      // Deduct new plan price from personal wallet
-      if (userRecord?.id) {
+      // Start transaction
+      const { error: transactionError } = await supabase.rpc('begin_transaction');
+      if (transactionError) throw transactionError;
+
+      try {
+        // Deduct new plan price from personal wallet
         const newPersonal = Math.max(0, balance - plan.price);
         const { error: walletUpdateErr } = await supabase
           .from('users')
           .update({ personal_wallet_balance: newPersonal })
-          .eq('id', userRecord.id);
-        if (walletUpdateErr) throw walletUpdateErr;
-        setUserRecord(prev => prev ? { ...prev, personal_wallet_balance: newPersonal } : prev);
-      }
-
-      // Create new active subscription
-      const start = new Date();
-      const end = new Date();
-      end.setDate(end.getDate() + plan.duration_days);
-
-      const { error: planErr } = await supabase.from('user_plans').insert({
-        user_id: user.id,
-        plan_id: plan.id,
-        start_date: start.toISOString().split('T')[0],
-        end_date: end.toISOString().split('T')[0],
-        is_active: true
-      });
-      if (planErr) throw planErr;
-
-      // Record upgrade event if applicable
-      if (isUpgrade) {
-        await supabase.from('vip_upgrades').insert({
-          user_id: internalUserId,
-          from_level: (dbUser?.vip_level as any) || null,
-          to_level: plan.name as any,
-          upgrade_amount: plan.price,
-          status: 'completed',
-          upgrade_date: new Date().toISOString()
-        });
-      }
-
-      // Update user's vip_level to the new plan's level name
-      const { error: profErr2 } = await supabase
-        .from('users')
-        .update({ vip_level: plan.name as any })
-        .eq('id', internalUserId);
-      if (profErr2) throw profErr2;
-
-      // If upgrading, now deactivate old plan and refund its price to income wallet
-      if (isUpgrade) {
-        await supabase
-          .from('user_plans')
-          .update({ is_active: false })
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .neq('plan_id', plan.id);
-
-        const previousPrice = activePlan?.price || 0;
-        const { data: freshUser } = await supabase
-          .from('users')
-          .select('income_wallet_balance')
-          .eq('id', internalUserId)
-          .single();
-        const newIncome = (freshUser?.income_wallet_balance || 0) + previousPrice;
-        const { error: incomeUpdateErr } = await supabase
-          .from('users')
-          .update({ income_wallet_balance: newIncome })
           .eq('id', internalUserId);
-        if (incomeUpdateErr) throw incomeUpdateErr;
-      }
+        if (walletUpdateErr) throw walletUpdateErr;
 
-      // Track VIP upgrade activity
-      if (isUpgrade) {
-        await trackVipUpgrade(activePlan?.name || 'None', plan.name, plan.price);
-      } else {
-        await trackVipUpgrade('None', plan.name, plan.price);
-      }
+        // Create new active subscription
+        const start = new Date();
+        const end = new Date();
+        end.setDate(end.getDate() + plan.duration_days);
 
-      toast({ title: isUpgrade ? 'Plan Upgraded' : 'VIP Activated', description: isUpgrade ? `Upgraded to ${plan.name}.` : `Welcome to ${plan.name}!` });
-      navigate('/dashboard/task');
+        const { error: planErr } = await supabase.from('user_plans').insert({
+          user_id: internalUserId,
+          plan_id: plan.id,
+          start_date: start.toISOString().split('T')[0],
+          end_date: end.toISOString().split('T')[0],
+          is_active: true
+        });
+        if (planErr) throw planErr;
+
+        // Update user's vip_level and daily_task_limit
+        const { error: profErr2 } = await supabase
+          .from('users')
+          .update({ 
+            vip_level: plan.name,
+            daily_task_limit: plan.daily_video_limit
+          })
+          .eq('id', internalUserId);
+        if (profErr2) throw profErr2;
+
+        // Record upgrade event if applicable
+        if (isUpgrade) {
+          await supabase.from('vip_upgrades').insert({
+            user_id: internalUserId,
+            from_level: (dbUser?.vip_level as any) || null,
+            to_level: plan.name as any,
+            upgrade_amount: plan.price,
+            status: 'completed',
+            upgrade_date: new Date().toISOString()
+          });
+        }
+
+        // Record transaction
+        await supabase.from('transactions').insert({
+          user_id: internalUserId,
+          transaction_type: 'vip_activation',
+          amount: plan.price,
+          description: `${isUpgrade ? 'Upgraded to' : 'Activated'} ${plan.name} plan`,
+          status: 'completed'
+        });
+
+        // If upgrading, deactivate old plan and refund its price to income wallet
+        if (isUpgrade) {
+          await supabase
+            .from('user_plans')
+            .update({ is_active: false })
+            .eq('user_id', internalUserId)
+            .eq('is_active', true)
+            .neq('plan_id', plan.id);
+
+          const previousPrice = activePlan?.price || 0;
+          const { data: freshUser } = await supabase
+            .from('users')
+            .select('income_wallet_balance')
+            .eq('id', internalUserId)
+            .single();
+          const newIncome = (freshUser?.income_wallet_balance || 0) + previousPrice;
+          const { error: incomeUpdateErr } = await supabase
+            .from('users')
+            .update({ income_wallet_balance: newIncome })
+            .eq('id', internalUserId);
+          if (incomeUpdateErr) throw incomeUpdateErr;
+        }
+
+        // Commit transaction
+        const { error: commitError } = await supabase.rpc('commit_transaction');
+        if (commitError) throw commitError;
+
+        // Update local state
+        setUserRecord(prev => prev ? { ...prev, personal_wallet_balance: newPersonal } : prev);
+
+        // Track VIP upgrade activity
+        if (isUpgrade) {
+          await trackVipUpgrade(activePlan?.name || 'None', plan.name, plan.price);
+        } else {
+          await trackVipUpgrade('None', plan.name, plan.price);
+        }
+
+        toast({ 
+          title: isUpgrade ? 'Plan Upgraded' : 'VIP Activated', 
+          description: isUpgrade ? `Upgraded to ${plan.name}. Daily limit: ${plan.daily_video_limit} tasks` : `Welcome to ${plan.name}! Daily limit: ${plan.daily_video_limit} tasks` 
+        });
+        navigate('/dashboard/task');
+      } catch (error) {
+        // Rollback transaction
+        await supabase.rpc('rollback_transaction');
+        throw error;
+      }
     } catch (err) {
       console.error('Join plan failed:', err);
       toast({ title: 'Activation Failed', description: 'Could not activate VIP. Please try again.', variant: 'destructive' });
@@ -540,9 +572,9 @@ const Dashboard = () => {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{currentVideoLimit}</div>
+            <div className="text-2xl font-bold">{remainingTasks}</div>
             <p className="text-xs text-muted-foreground">
-              Daily video limit
+              Remaining tasks ({completedToday}/{dailyLimit})
             </p>
           </CardContent>
         </Card>
@@ -589,7 +621,11 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent>
           {loadingVip ? (
-            <div className="text-yellow-700">Loading VIP options...</div>
+            <LoadingSpinner 
+              size="sm" 
+              text="Loading VIP options..." 
+              className="text-yellow-700 py-8"
+            />
           ) : (
             <>
               <div className="space-y-3">

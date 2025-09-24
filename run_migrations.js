@@ -1,30 +1,29 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
-const path = require('path');
 
-const SUPABASE_URL = "https://npliuqbormakkyggcgtw.supabase.co";
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbGl1cWJvcm1ha2t5Z2djZ3R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1NTgzNTIsImV4cCI6MjA3MDEzNDM1Mn0.-rw3ZEVg3QYrP7DboDpx6KNFlx2jcoamTMvjd22DU2s";
+// Read Supabase config
+const supabaseUrl = 'https://npliuqbormakkyggcgtw.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbGl1cWJvcm1ha2t5Z2djZ3R3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjY5NzQ4MCwiZXhwIjoyMDUyMjc0NDgwfQ.8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8QJ8';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function runMigrations() {
   try {
-    console.log('Reading SQL file...');
-    const sqlContent = fs.readFileSync(path.join(__dirname, 'create_missing_tables.sql'), 'utf8');
+    console.log('Running database migrations...');
     
-    console.log('Executing SQL...');
-    const { data, error } = await supabase.rpc('exec_sql', { sql: sqlContent });
+    // Read the SQL file
+    const sql = fs.readFileSync('create_missing_tables.sql', 'utf8');
+    
+    // Execute the SQL
+    const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql });
     
     if (error) {
-      console.error('Error executing SQL:', error);
-      return;
+      console.error('Error running migrations:', error);
+    } else {
+      console.log('Migrations completed successfully!');
     }
-    
-    console.log('Migration completed successfully!');
-    console.log('Result:', data);
-    
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('Error:', err);
   }
 }
 

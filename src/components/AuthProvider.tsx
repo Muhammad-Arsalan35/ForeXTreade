@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('AuthProvider: Fetching user profile for:', userId);
       
-      // Try to fetch user profile with a timeout
+      // Try to fetch user profile with a shorter timeout
       const profilePromise = supabase
         .from('users')
         .select('*')
@@ -117,7 +117,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .single();
 
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
       );
 
       const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
@@ -152,14 +152,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setProfile(insertData);
           }
         } else {
-          // For other errors, set a minimal profile
+          // For other errors, set a minimal profile to prevent blocking
           const minimalProfile = {
             auth_user_id: userId,
             full_name: 'User',
             username: 'user',
             phone_number: '',
             vip_level: 'VIP1',
-            user_status: 'active'
+            user_status: 'active',
+            referral_code: Math.floor(100000 + Math.random() * 900000).toString()
           };
           setProfile(minimalProfile as any);
         }
@@ -178,7 +179,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         username: 'user',
         phone_number: '',
         vip_level: 'VIP1',
-        user_status: 'active'
+        user_status: 'active',
+        referral_code: Math.floor(100000 + Math.random() * 900000).toString()
       };
       setProfile(minimalProfile as any);
     }

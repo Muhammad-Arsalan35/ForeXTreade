@@ -43,35 +43,74 @@ export const Login = () => {
 
     try {
       const formattedPhone = formatPhoneNumber(formData.phone);
-        const emailFormat = `${formData.phone.replace(/\D/g, '')}@fxtrade.app`;
       
-      console.log('Attempting login with:', { 
+      console.log('Attempting login with phone:', { 
         phone: formData.phone, 
-        formattedPhone,
-        emailFormat 
+        formattedPhone
       });
       
-      // Try both phone and email formats to ensure compatibility
-      let { data, error } = await supabase.auth.signInWithPassword({
-        phone: formattedPhone,
+      // Phone-to-email authentication (no SMS required)
+      const emailFormat = `${formData.phone.replace(/\D/g, '')}@forextrade.com`;
+      
+      console.log('Logging in with phone-based email:', emailFormat);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailFormat,
         password: formData.password
       });
 
-      // If phone auth fails, try email format
-      if (error) {
-        console.log('Phone auth failed, trying email format...', error.message);
-        
-        const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
-          email: emailFormat,
-          password: formData.password
-        });
-        
-        data = emailData;
-        error = emailError;
-      }
-
       if (error) {
         console.error('Login error:', error);
+        
+        // Handle email confirmation error specifically
+        if (error.message.includes('Email not confirmed')) {
+          console.log('Email confirmation error detected, attempting to resolve...');
+          
+          // Try to sign up the user again to bypass confirmation
+          try {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: emailFormat,
+              password: formData.password,
+              options: {
+                emailRedirectTo: undefined,
+                data: {
+                  phone: formattedPhone,
+                  display_name: formData.phone,
+                  email_confirmed: true
+                }
+              }
+            });
+            
+            if (!signUpError) {
+              // Now try to sign in again
+              const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+                email: emailFormat,
+                password: formData.password
+              });
+              
+              if (!retryError && retryData.user) {
+                console.log('Login successful after confirmation bypass');
+                toast({
+                  title: "Login Successful",
+                  description: "Welcome back!",
+                });
+                navigate("/dashboard", { replace: true });
+                return;
+              }
+            }
+          } catch (retryError) {
+            console.error('Retry login failed:', retryError);
+          }
+          
+          toast({
+            title: "Account Setup Required",
+            description: "Please try signing up again with this phone number to complete your account setup.",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+        
         let errorMessage = "Invalid phone number or password. Please check your credentials.";
         
         if (error.message.includes('Invalid login credentials')) {

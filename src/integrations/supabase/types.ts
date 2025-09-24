@@ -14,6 +14,37 @@ export type Database = {
   }
   public: {
     Tables: {
+}
+      commission_rates: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          level: Database["public"]["Enums"]["referral_level_enum"]
+          rate: number
+          updated_at: string | null
+          vip_upgrade_commission_percentage: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          level: Database["public"]["Enums"]["referral_level_enum"]
+          rate: number
+          updated_at?: string | null
+          vip_upgrade_commission_percentage?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          level?: Database["public"]["Enums"]["referral_level_enum"]
+          rate?: number
+          updated_at?: string | null
+          vip_upgrade_commission_percentage?: number | null
+        }
+        Relationships: []
+      }
       deposits: {
         Row: {
           account_number: string
@@ -79,6 +110,41 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      referral_commissions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          level: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          level: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          level?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_commissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       referrals: {
         Row: {
@@ -230,6 +296,60 @@ export type Database = {
         }
         Relationships: []
       }
+      task_completions: {
+        Row: {
+          completed_at: string
+          created_at: string | null
+          id: string
+          reward_earned: number | null
+          session_id: string | null
+          task_id: string
+          task_key: string | null
+          task_type: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string | null
+          id?: string
+          reward_earned?: number | null
+          session_id?: string | null
+          task_id: string
+          task_key?: string | null
+          task_type?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string | null
+          id?: string
+          reward_earned?: number | null
+          session_id?: string | null
+          task_id?: string
+          task_key?: string | null
+          task_type?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_completions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_structure: {
         Row: {
           active_members: number | null
@@ -283,6 +403,47 @@ export type Database = {
           },
           {
             foreignKeyName: "team_structure_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          status: Database["public"]["Enums"]["transaction_status_enum"] | null
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["transaction_status_enum"] | null
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["transaction_status_enum"] | null
+          transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -428,10 +589,13 @@ export type Database = {
           position_title: string | null
           profile_avatar: string | null
           referral_code: string
+          referral_count: number | null
           referral_level: number | null
           referred_by: string | null
           total_earnings: number | null
           total_invested: number | null
+          total_referral_earnings: number | null
+          level: number | null
           two_factor_enabled: boolean | null
           two_factor_secret: string | null
           updated_at: string | null
@@ -453,10 +617,13 @@ export type Database = {
           position_title?: string | null
           profile_avatar?: string | null
           referral_code?: string
+          referral_count?: number | null
           referral_level?: number | null
           referred_by?: string | null
           total_earnings?: number | null
           total_invested?: number | null
+          total_referral_earnings?: number | null
+          level?: number | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string | null
@@ -478,10 +645,13 @@ export type Database = {
           position_title?: string | null
           profile_avatar?: string | null
           referral_code?: string
+          referral_count?: number | null
           referral_level?: number | null
           referred_by?: string | null
           total_earnings?: number | null
           total_invested?: number | null
+          total_referral_earnings?: number | null
+          level?: number | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string | null
@@ -541,6 +711,44 @@ export type Database = {
         }
         Relationships: []
       }
+      withdrawals: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          payment_method: string | null
+          status: Database["public"]["Enums"]["withdrawal_status_enum"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          payment_method?: string | null
+          status?: Database["public"]["Enums"]["withdrawal_status_enum"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          payment_method?: string | null
+          status?: Database["public"]["Enums"]["withdrawal_status_enum"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       vip_upgrades: {
         Row: {
           from_level: Database["public"]["Enums"]["vip_level_enum"] | null
@@ -578,6 +786,131 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_plans: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          plan_id: string
+          start_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          plan_id: string
+          start_date: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          plan_id?: string
+          start_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_plans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          duration: number | null
+          id: string
+          is_active: boolean | null
+          reward_per_watch: number | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+          video_url: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean | null
+          reward_per_watch?: number | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+          video_url: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: number | null
+          id?: string
+          is_active?: boolean | null
+          reward_per_watch?: number | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+          video_url?: string
+        }
+        Relationships: []
+      }
+      video_earning_rates: {
+        Row: {
+          created_at: string | null
+          id: string
+          rate_per_video: number
+          updated_at: string | null
+          vip_level: Database["public"]["Enums"]["vip_level_enum"]
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          rate_per_video: number
+          updated_at?: string | null
+          vip_level: Database["public"]["Enums"]["vip_level_enum"]
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          rate_per_video?: number
+          updated_at?: string | null
+          vip_level?: Database["public"]["Enums"]["vip_level_enum"]
+        }
+        Relationships: []
+      }
+      app_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          support_phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          support_phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          support_phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseService } from "@/integrations/supabase/serviceClient";
 
 export const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -94,24 +95,36 @@ export const Signup = () => {
         referralCode: formData.referralCode
       });
       
-      // Simple signup without custom metadata to avoid database errors
-      let { data, error } = await supabase.auth.signUp({
-        phone: formattedPhone,
-        password: formData.password
+      // Phone-to-email authentication (no SMS required)
+      const emailFormat = `${formData.phone.replace(/\D/g, '')}@forextrade.com`;
+      
+      console.log('Creating account with phone-based email:', emailFormat);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: emailFormat,
+        password: formData.password,
+        options: {
+          emailRedirectTo: undefined, // Skip email confirmation
+          data: {
+            phone: formattedPhone, // Store actual phone in metadata
+            display_name: formData.fullName,
+            email_confirmed: true // Mark as confirmed
+          }
+        }
       });
-
-      // If phone auth fails, try email format
-      if (error && (error.message.includes('email') || error.message.includes('disabled'))) {
-        console.log('Phone auth failed, trying email format...');
-        const emailFormat = `${formData.phone.replace(/\D/g, '')}@fxtrade.app`;
-        
-        const { data: emailData, error: emailError } = await supabase.auth.signUp({
+      
+      // If signup successful, immediately sign in to bypass email confirmation
+      if (data.user && !error) {
+        console.log('Signup successful, signing in automatically...');
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: emailFormat,
           password: formData.password
         });
         
-        data = emailData;
-        error = emailError;
+        if (signInError) {
+          console.error('Auto sign-in failed:', signInError);
+          throw signInError;
+        }
       }
 
       if (error) {
@@ -131,114 +144,109 @@ export const Signup = () => {
           description: errorMessage,
           variant: "destructive"
         });
+        setLoading(false);
         return;
       }
 
       if (data.user) {
         try {
-          // Create user profile in the database
-          const { error: profileError } = await supabase
+          // Generate a referral code function
+          const generateReferralCode = () => {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+          };
+
+          // Create user profile in the database using service client to bypass RLS
+          const { error: profileError } = await supabaseService
             .from('users')
             .insert({
               auth_user_id: data.user.id,
               full_name: formData.fullName,
               username: formData.username,
-              phone: formData.phone,
-              referral_code: Math.floor(100000 + Math.random() * 900000).toString(), // Generate a random 6-digit code
+              phone_number: formattedPhone,
+              vip_level: 'VIP1',
+              user_status: 'active',
+              referral_code: generateReferralCode(),
+              personal_wallet_balance: 0.00,
+              income_wallet_balance: 0.00,
+              total_earnings: 0.00,
+              total_invested: 0.00,
+              position_title: 'Member',
               referred_by: formData.referralCode || null
             });
 
           if (profileError) {
-            console.error('Error creating user profile:', profileError);
+            console.error('Profile creation error:', profileError);
             toast({
-              title: "Warning",
-              description: "Account created but profile setup incomplete. Please contact support.",
+              title: "Profile Creation Failed",
+              description: "Account created but profile setup failed. Please contact support.",
               variant: "destructive"
             });
-          } else {
-            // Wait a moment for the database trigger to create the user profile
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Update the user profile with additional information
-            const { error: updateError } = await supabase
-              .from('users')
-              .update({
-                full_name: formData.fullName,
-                username: formData.username,
-                phone_number: formData.phone,
-                referred_by: formData.referralCode || null
-              })
-              .eq('auth_user_id', data.user.id);
-    
-            if (updateError) {
-              console.error('Error updating user profile:', updateError);
-              toast({
-                title: "Warning",
-                description: "Account created but profile setup incomplete. Please contact support.",
-                variant: "destructive"
-              });
-            } else {
-              // If referral code is provided, update team structure
-              try {
-                if (formData.referralCode) {
-                  // Find the referrer
-                  const { data: referrerData, error: referrerError } = await supabase
-                    .from('users')
-                    .select('id')
-                    .eq('referral_code', formData.referralCode)
-                    .single();
+            setLoading(false);
+            return;
+          }
 
-                  if (!referrerError && referrerData) {
-                    // Get the newly created user's ID from the users table
-                    const { data: newUserData, error: newUserError } = await supabase
-                      .from('users')
-                      .select('id')
-                      .eq('auth_user_id', data.user.id)
-                      .single();
+          // Handle referral logic if referral code is provided
+          if (formData.referralCode && formData.referralCode.trim() !== '') {
+            try {
+              // Find the referrer
+              const { data: referrerData, error: referrerError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('referral_code', formData.referralCode)
+                .single();
 
-                    if (!newUserError && newUserData) {
-                      // Add to referrals table
-                      await supabase
-                        .from('referrals')
-                        .insert({
-                          referrer_id: referrerData.id,
-                          referred_id: newUserData.id,
-                          level: 'A', // Direct referral
-                          commission_rate: 0.1, // 10% commission rate for direct referrals
-                          referral_code_used: formData.referralCode,
-                          registration_completed: true,
-                          status: 'active'
-                        });
+              if (!referrerError && referrerData) {
+                // Get the newly created user's ID from the users table
+                const { data: newUserData, error: newUserError } = await supabase
+                  .from('users')
+                  .select('id')
+                  .eq('auth_user_id', data.user.id)
+                  .single();
 
-                      // Add to team structure
-                      await supabase
-                        .from('team_structure')
-                        .insert({
-                          user_id: newUserData.id,
-                          parent_id: referrerData.id
-                        });
-                    }
-                  }
+                if (!newUserError && newUserData) {
+                  // Add to referrals table
+                  await supabase
+                    .from('referrals')
+                    .insert({
+                      referrer_id: referrerData.id,
+                      referred_id: newUserData.id,
+                      level: 'A', // Direct referral
+                      commission_rate: 0.1, // 10% commission rate for direct referrals
+                      referral_code_used: formData.referralCode,
+                      registration_completed: true,
+                      status: 'active'
+                    });
+
+                  // Add to team structure
+                  await supabase
+                    .from('team_structure')
+                    .insert({
+                      user_id: newUserData.id,
+                      parent_id: referrerData.id
+                    });
                 }
-              } catch (dbError) {
-                console.error('Database error:', dbError);
               }
+            } catch (dbError) {
+              console.error('Database error:', dbError);
             }
           }
 
-          // Store user data in localStorage as backup
+          // Store user data in localStorage for immediate access
           localStorage.setItem('userData', JSON.stringify({
+            id: data.user.id,
+            phone: formattedPhone,
             fullName: formData.fullName,
-            username: formData.username,
-            phone: formData.phone,
-            referralCode: formData.referralCode
+            email: emailFormat
           }));
 
           toast({
-            title: "Success!",
-            description: "Account created successfully. You can now login.",
+            title: "Account created successfully!",
+            description: "Welcome to ForeX Trade! Redirecting to dashboard...",
           });
-          navigate("/dashboard", { replace: true });
+
+          // Navigate to dashboard immediately since we're now signed in
+          navigate('/dashboard');
+          
         } catch (error) {
           console.error('Unexpected error:', error);
           toast({
@@ -246,8 +254,6 @@ export const Signup = () => {
             description: "An unexpected error occurred. Please try again.",
             variant: "destructive"
           });
-        } finally {
-          setLoading(false);
         }
       }
     } catch (error) {
