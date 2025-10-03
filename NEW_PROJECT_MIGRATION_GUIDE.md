@@ -258,6 +258,26 @@ EXPLAIN ANALYZE SELECT * FROM transactions WHERE user_id = 'user-uuid';
 
 ---
 
+## 🔧 Environment Setup
+
+Configure environment variables so the app and scripts can run Supabase queries:
+
+```env
+# Frontend (Vite)
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+
+# Node scripts / server-side
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_ANON_KEY
+SUPABASE_SERVICE_KEY=YOUR_SERVICE_ROLE_KEY
+```
+
+- Frontend uses `VITE_` variables via `import.meta.env`.
+- The `SUPABASE_SERVICE_KEY` must only be used on the server or in Node scripts.
+- After updating envs, restart the dev server so changes take effect.
+- If you see "Supabase environment not configured", verify variable names and values.
+
 ## ✅ **Migration Checklist**
 
 - [ ] New Supabase project created

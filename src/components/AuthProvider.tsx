@@ -14,7 +14,6 @@ interface UserProfile {
   full_name: string;
   username: string;
   vip_level: string;
-  user_status: string;
   phone_number: string;
   referral_code: string;
   referred_by?: string;
@@ -134,7 +133,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             username: 'user',
             phone_number: '',
             vip_level: 'VIP1',
-            user_status: 'active',
             referral_code: Math.floor(100000 + Math.random() * 900000).toString()
           };
           
@@ -159,7 +157,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             username: 'user',
             phone_number: '',
             vip_level: 'VIP1',
-            user_status: 'active',
             referral_code: Math.floor(100000 + Math.random() * 900000).toString()
           };
           setProfile(minimalProfile as any);
@@ -179,7 +176,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         username: 'user',
         phone_number: '',
         vip_level: 'VIP1',
-        user_status: 'active',
         referral_code: Math.floor(100000 + Math.random() * 900000).toString()
       };
       setProfile(minimalProfile as any);

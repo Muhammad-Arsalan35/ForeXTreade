@@ -34,7 +34,6 @@ interface UserProfile {
   total_invested: number | null;
   income_wallet_balance: number | null;
   personal_wallet_balance: number | null;
-  position_title: string | null;
   created_at: string | null;
 }
 
@@ -65,11 +64,34 @@ export const Profile = () => {
         .from('users')
         .select('*')
         .eq('auth_user_id', authUser.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
-      setProfile(profileData);
+      if (!profileData) {
+        toast({
+          title: "Profile Not Found",
+          description: "We couldn't find your profile yet. It will be created automatically shortly. Please refresh if it doesn't appear.",
+          variant: "default"
+        });
+        setProfile({
+          id: authUser.id,
+          full_name: 'User',
+          username: 'user',
+          phone_number: '',
+          profile_avatar: null,
+          referral_code: '',
+          referral_level: null,
+          vip_level: null,
+          total_earnings: 0,
+          total_invested: 0,
+          income_wallet_balance: 0,
+          personal_wallet_balance: 0,
+          created_at: null
+        } as any);
+      } else {
+        setProfile(profileData);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
       toast({
@@ -91,18 +113,26 @@ export const Profile = () => {
     }
   };
 
-  const handleWhatsAppContact = () => {
-    // Get support phone number from database or environment variable instead of hardcoding
-    // For now, we'll use a placeholder that should be replaced with a real configuration
-    const { data: supportConfig } = supabase
-      .from('app_config')
-      .select('support_phone')
-      .single();
-      
-    const phoneNumber = supportConfig?.support_phone || "+923001234567"; // Fallback if config not available
-    const message = "Hello! I need 24/7 support assistance.";
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+  const handleWhatsAppContact = async () => {
+    try {
+      // Get support phone number from database or environment variable instead of hardcoding
+      const { data: supportConfig } = await supabase
+        .from('app_config')
+        .select('support_phone')
+        .single();
+        
+      const phoneNumber = supportConfig?.support_phone || "+923001234567"; // Fallback if config not available
+      const message = "Hello! I need 24/7 support assistance.";
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    } catch (error) {
+      console.error('Error fetching support config:', error);
+      // Use fallback number if database query fails
+      const phoneNumber = "+923001234567";
+      const message = "Hello! I need 24/7 support assistance.";
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    }
   };
 
   const handleHiringManagerContact = () => {
@@ -152,7 +182,7 @@ export const Profile = () => {
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge className="bg-gradient-cash text-primary-foreground">
-                      {profile.vip_level || 'VIP1'} {profile.position_title || 'General Employee'}
+                      {profile.vip_level || 'VIP1'} Member
                     </Badge>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ interface MembershipPlan {
   name: string;
   daily_video_limit: number;
   price: number;
+  video_rate: number;
   duration_days: number;
   is_active: boolean;
 }

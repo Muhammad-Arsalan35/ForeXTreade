@@ -14,7 +14,6 @@ interface UserProfile {
   full_name: string;
   username: string;
   vip_level: string;
-  user_status: string;
   phone_number: string;
 }
 
@@ -88,7 +87,7 @@ export const useAuth = () => {
         .from('users')
         .select('*')
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
@@ -103,35 +102,43 @@ export const useAuth = () => {
         // If profile doesn't exist, create a default one with 0.00 values
         if (error.code === 'PGRST116') {
           console.log('User profile not found, creating default profile');
+          // Derive sensible defaults from auth session
+          const { data: { session } } = await supabase.auth.getSession();
+          const emailLocal = session?.user?.email?.split('@')[0] || 'user';
+          const derivedPhone = /\d{5,}/.test(emailLocal) ? emailLocal : '';
           const defaultProfile = {
             auth_user_id: userId,
             full_name: 'User',
-            username: 'user',
-            phone_number: '',
+            username: emailLocal || 'user',
+            phone_number: derivedPhone,
             vip_level: 'VIP1',
-            user_status: 'active',
             referral_code: Math.floor(100000 + Math.random() * 900000).toString(),
             personal_wallet_balance: 0.00,
             income_wallet_balance: 0.00,
-            total_earnings: 0.00,
-            tasks_completed_today: 0,
-            daily_task_limit: 5,
-            referral_count: 0,
-            position_title: 'Member'
+            total_earnings: 0.00
           };
           
-          const { data: insertData, error: insertError } = await supabase
+          const { error: insertError } = await supabase
             .from('users')
-            .insert(defaultProfile)
-            .select()
-            .single();
+            .insert(defaultProfile);
             
           if (insertError) {
             console.error('Error creating default profile:', insertError);
+            // Fallback minimal profile to avoid blocking the UI
             setProfile(defaultProfile as any);
           } else {
-            console.log('Default profile created:', insertData);
-            setProfile(insertData);
+            // Re-fetch created profile to get generated fields like id
+            const { data: created } = await supabase
+              .from('users')
+              .select('*')
+              .eq('auth_user_id', userId)
+              .maybeSingle();
+            if (created) {
+              console.log('Default profile created:', created);
+              setProfile(created as any);
+            } else {
+              setProfile(defaultProfile as any);
+            }
           }
         } else {
           // For other errors, set a minimal profile to prevent blocking
@@ -141,7 +148,6 @@ export const useAuth = () => {
             username: 'user',
             phone_number: '',
             vip_level: 'VIP1',
-            user_status: 'active',
             referral_code: Math.floor(100000 + Math.random() * 900000).toString()
           };
           setProfile(minimalProfile as any);
@@ -159,7 +165,6 @@ export const useAuth = () => {
         username: 'user',
         phone_number: '',
         vip_level: 'VIP1',
-        user_status: 'active',
         referral_code: Math.floor(100000 + Math.random() * 900000).toString()
       };
       setProfile(minimalProfile as any);
@@ -188,8 +193,10 @@ export const useAuth = () => {
 
   const getUserRole = () => {
     if (!profile) return 'user';
-    return profile.vip_level === 'VIP10' ? 'admin' : 
-           profile.vip_level && profile.vip_level !== 'VIP1' ? 'vip' : 'user';
+    const lvl = profile.vip_level || '';
+    const isVip = lvl.startsWith('VIP');
+    if (lvl === 'VIP10') return 'admin';
+    return isVip && lvl !== 'VIP1' ? 'vip' : 'user';
   };
 
   const getVipLevel = () => {

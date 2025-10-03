@@ -114,12 +114,29 @@ export const Financial = () => {
         .from('users')
         .select('id, income_wallet_balance, personal_wallet_balance, total_earnings')
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
       
       const internalUserId = dbUser?.id || user.id;
 
       if (!dbUser) {
-        throw new Error('User data not found');
+        // Create a minimal default user row to avoid blocking the UI
+        const emailLocal = user.email?.split('@')[0] || 'user';
+        const derivedPhone = /\d{5,}/.test(emailLocal) ? emailLocal : '';
+        const defaultProfile: any = {
+          auth_user_id: user.id,
+          full_name: 'User',
+          username: emailLocal,
+          phone_number: derivedPhone,
+          vip_level: 'VIP1',
+          referral_code: Math.floor(100000 + Math.random() * 900000).toString(),
+          personal_wallet_balance: 0.00,
+          income_wallet_balance: 0.00,
+          total_earnings: 0.00
+        };
+        const { error: insertError } = await supabase.from('users').insert(defaultProfile);
+        if (insertError) {
+          console.error('Error creating default user for financial page:', insertError);
+        }
       }
 
       // Format wallet data

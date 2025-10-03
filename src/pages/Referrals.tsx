@@ -106,7 +106,7 @@ export const Referrals = () => {
       const { data: teamData, error: teamError } = await supabase
         .from('team_structure')
         .select(`
-          referred_user:users!referred_user_id(
+          referred_user:users!user_id(
             id,
             full_name,
             username,
@@ -116,7 +116,7 @@ export const Referrals = () => {
             created_at
           )
         `)
-        .eq('referrer_id', profileData.id)
+        .eq('parent_id', profileData.id)
         .order('created_at', { ascending: false });
 
       if (teamError) {

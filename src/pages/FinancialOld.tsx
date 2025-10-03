@@ -95,7 +95,7 @@ export const Financial = () => {
         .channel('user-tasks-realtime')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${internalUserId}` },
+          { event: '*', schema: 'public', table: 'daily_video_tasks', filter: `user_id=eq.${internalUserId}` },
           () => fetchFinancialData()
         )
         .subscribe();
@@ -198,15 +198,28 @@ export const Financial = () => {
       const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
 
       const fetchTaskSum = async (from: Date, to: Date) => {
-        const { data } = await supabase
-          .from('user_tasks')
-          .select('reward_earned, completed_at, status')
+        // Get user's active plan to calculate video rate
+        const { data: activePlanData } = await supabase
+          .from('user_plans')
+          .select('plan_id, membership_plans(*)')
           .eq('user_id', internalUserId)
-          .eq('status', 'completed')
+          .eq('is_active', true)
+          .single();
+
+        const videoRate = activePlanData?.membership_plans?.video_rate || 30; // Default rate if no plan
+
+        // Get completed video tasks count
+        const { count } = await supabase
+          .from('daily_video_tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', internalUserId)
+          .not('completed_at', 'is', null)
           .gte('completed_at', from.toISOString())
           .lte('completed_at', to.toISOString());
-        // Some rows may store reward_earned as null. If so, estimate via active plan rate when missing.
-        const sum = (data || []).reduce((acc: number, row: any) => acc + (Number(row.reward_earned) || 0), 0);
+
+        // Calculate earnings: completed videos * video rate
+        const completedVideos = count || 0;
+        const sum = completedVideos * videoRate;
         return sum;
       };
 

@@ -36,13 +36,19 @@ export const useTaskCompletion = () => {
       setCompletedTaskIds(completedIds);
 
       // Fetch user's current daily task limit from their membership plan
-      const { data: membershipPlan, error: planError } = await supabase
-        .from('membership_plans')
-        .select('daily_video_limit')
-        .eq('name', profile.vip_level)
-        .single();
+      let dailyLimit = 5; // Default to 5 tasks
+      
+      if (profile.vip_level) {
+        const { data: membershipPlan, error: planError } = await supabase
+          .from('membership_plans')
+          .select('daily_video_limit')
+          .eq('name', profile.vip_level)
+          .single();
 
-      const dailyLimit = membershipPlan?.daily_video_limit || 5; // Default to 5 if no plan or limit
+        if (!planError && membershipPlan) {
+          dailyLimit = membershipPlan.daily_video_limit || 5;
+        }
+      }
 
       setDailyStats({
         completedToday: completedIds.length,

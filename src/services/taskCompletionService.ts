@@ -50,13 +50,41 @@ class TaskCompletionService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const { data: dbUser } = await supabase
+      const { data: dbUser, error } = await supabase
         .from('users')
         .select('id')
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      return dbUser?.id || null;
+      if (dbUser?.id) return dbUser.id;
+
+      // If user row is missing, create a minimal default profile to ensure downstream flows work
+      const emailLocal = user.email?.split('@')[0] || 'user';
+      const derivedPhone = /\d{5,}/.test(emailLocal) ? emailLocal : '';
+      const defaultProfile: any = {
+        auth_user_id: user.id,
+        full_name: 'User',
+        username: emailLocal,
+        phone_number: derivedPhone,
+        vip_level: 'VIP1',
+        referral_code: Math.floor(100000 + Math.random() * 900000).toString(),
+        personal_wallet_balance: 0.00,
+        income_wallet_balance: 0.00,
+        total_earnings: 0.00
+      };
+
+      const { error: insertError } = await supabase.from('users').insert(defaultProfile);
+      if (insertError) {
+        console.error('Error creating default user profile:', insertError);
+        return null;
+      }
+
+      const { data: created } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+      return created?.id || null;
     } catch (error) {
       console.error('Error getting internal user ID:', error);
       return null;
@@ -75,7 +103,7 @@ class TaskCompletionService {
         .from('users')
         .select('vip_level')
         .eq('id', internalUserId)
-        .single();
+        .maybeSingle();
 
       const vipLevel = userData?.vip_level || 'VIP1';
       const dailyLimit = this.getDailyLimitForVipLevel(vipLevel);
@@ -85,12 +113,34 @@ class TaskCompletionService {
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-      const { data: completions } = await supabase
+      const { data: completions, error: completionsError } = await supabase
         .from('task_completions')
         .select('task_id, completed_at')
         .eq('user_id', internalUserId)
         .gte('completed_at', startOfDay.toISOString())
         .lte('completed_at', endOfDay.toISOString());
+
+      // Check if the table doesn't exist
+      if (completionsError && completionsError.code === 'PGRST205') {
+        console.warn('⚠️ task_completions table does not exist. Task completion tracking is disabled.');
+        console.warn('💡 Please create the task_completions table in your Supabase dashboard.');
+        return {
+          completed_today: 0,
+          daily_limit: dailyLimit,
+          remaining_tasks: dailyLimit,
+          completed_task_ids: []
+        };
+      }
+
+      if (completionsError) {
+        console.error('Error fetching task completions:', completionsError);
+        return {
+          completed_today: 0,
+          daily_limit: dailyLimit,
+          remaining_tasks: dailyLimit,
+          completed_task_ids: []
+        };
+      }
 
       const completedTaskIds = completions?.map(c => c.task_id) || [];
       const completedToday = completedTaskIds.length;
@@ -156,7 +206,7 @@ class TaskCompletionService {
           .eq('id', internalUserId)
           .single();
         
-        const vipLevel = userData?.vip_level || 'VIP1';
+        const vipLevel = userData?.vip_level || 'Intern';
         reward = await this.getVipRate(vipLevel);
       }
 
@@ -165,21 +215,28 @@ class TaskCompletionService {
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-      const { data: existingCompletion } = await supabase
+      const { data: existingCompletion, error: checkError } = await supabase
         .from('task_completions')
         .select('id')
         .eq('user_id', internalUserId)
         .eq('task_id', taskId)
         .gte('completed_at', startOfDay.toISOString())
         .lte('completed_at', endOfDay.toISOString())
-        .single();
+        .maybeSingle();
 
-      if (existingCompletion) {
+      // Handle missing table - skip completion check but continue with reward
+      if (checkError && checkError.code === 'PGRST205') {
+        console.warn('⚠️ task_completions table does not exist. Skipping completion tracking but processing reward.');
+      } else if (checkError && checkError.code !== 'PGRST116') {
+        // PGRST116 is "not found" which is expected when no completion exists
+        console.error('Error checking existing completion:', checkError);
+        return false;
+      } else if (existingCompletion) {
         console.log('Task already completed today:', taskId);
         return false;
       }
 
-      // Record task completion
+      // Try to record task completion (will fail gracefully if table doesn't exist)
       const { error: completionError } = await supabase
         .from('task_completions')
         .insert({
@@ -192,7 +249,9 @@ class TaskCompletionService {
           session_id: this.getSessionId()
         });
 
-      if (completionError) {
+      if (completionError && completionError.code === 'PGRST205') {
+        console.warn('⚠️ task_completions table does not exist. Task completion not recorded but reward will be processed.');
+      } else if (completionError) {
         console.error('Error recording task completion:', completionError);
         return false;
       }
@@ -202,7 +261,7 @@ class TaskCompletionService {
         .from('users')
         .select('income_wallet_balance, total_earnings')
         .eq('id', internalUserId)
-        .single();
+        .maybeSingle();
 
       if (userData) {
         const newIncomeBalance = (userData.income_wallet_balance || 0) + reward;
@@ -262,12 +321,23 @@ class TaskCompletionService {
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-      const { data: completions } = await supabase
+      const { data: completions, error: completionsError } = await supabase
         .from('task_completions')
         .select('task_id')
         .eq('user_id', internalUserId)
         .gte('completed_at', startOfDay.toISOString())
         .lte('completed_at', endOfDay.toISOString());
+
+      // Handle missing table gracefully
+      if (completionsError && completionsError.code === 'PGRST205') {
+        console.warn('⚠️ task_completions table does not exist. Returning empty completion list.');
+        return [];
+      }
+
+      if (completionsError) {
+        console.error('Error fetching completed tasks:', completionsError);
+        return [];
+      }
 
       return completions?.map(c => c.task_id) || [];
     } catch (error) {

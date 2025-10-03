@@ -52,7 +52,13 @@ export default function Admin() {
         if (!res.ok) { setIsAdmin(false); setIsAdminChecked(true); return; }
         const data = await res.json();
         const user = data?.data?.user;
-        setIsAdmin(Boolean(user && user.position_title === 'admin'));
+        // Check if user is admin based on username or email
+        const isAdminUser = user && (
+          user.email?.toLowerCase().includes('admin') ||
+          user.username?.toLowerCase().includes('admin') ||
+          user.email === 'admin@fxtrade.com'
+        );
+        setIsAdmin(Boolean(isAdminUser));
       } catch {
         setIsAdmin(false);
       } finally {

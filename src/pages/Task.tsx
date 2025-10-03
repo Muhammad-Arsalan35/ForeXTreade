@@ -240,16 +240,21 @@ export const Task = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const levelName = membershipPlan?.name || 'VIP1';
-      const levelNum = Number((levelName || 'VIP1').replace('VIP', '')) || 1;
-      const allowedLevels = Array.from({ length: levelNum }, (_, i) => `VIP${i + 1}`);
+      const levelName = membershipPlan?.name || 'Intern';
+      const isVipLevel = levelName.startsWith('VIP');
+      const levelNum = isVipLevel ? (Number(levelName.replace('VIP', '')) || 1) : 0;
+      const allowedLevels = isVipLevel
+        ? Array.from({ length: levelNum }, (_, i) => `VIP${i + 1}`)
+        : [];
 
       // Fetch active tasks for this VIP range
       const { data: dbTasks } = await (supabase as any)
         .from('tasks')
         .select('*')
         .eq('task_status', 'active')
-        .or(`min_vip_level.is.null,min_vip_level.in.(${allowedLevels.join(',')})`)
+        .or(allowedLevels.length
+          ? `min_vip_level.is.null,min_vip_level.in.(${allowedLevels.join(',')})`
+          : 'min_vip_level.is.null')
         .order('created_at', { ascending: false })
         .limit(Math.max(1, membershipPlan?.daily_tasks_limit || 10));
 
@@ -319,11 +324,11 @@ export const Task = () => {
         .eq('auth_user_id', user.id)
         .single();
 
-      const levelName = dbUser?.vip_level || 'VIP1';
+      const levelName = dbUser?.vip_level || 'Intern';
       const { data: plan } = await (supabase as any)
         .from('membership_plans')
         .select('id,name,daily_video_limit,is_active')
-        .eq('name', levelName)
+        .eq('vip_level', levelName)
         .eq('is_active', true)
         .single();
 
@@ -332,7 +337,7 @@ export const Task = () => {
           id: plan.id,
           name: plan.name,
           unit_price: getVipRate(levelName),
-          daily_tasks_limit: plan.daily_video_limit || (levelName === 'VIP1' ? 5 : 10)
+          daily_tasks_limit: plan.daily_video_limit || (levelName === 'Intern' ? 3 : 10)
         });
       } else {
         // Fallback plan using provided mapping
@@ -340,7 +345,8 @@ export const Task = () => {
           id: 'fallback',
           name: levelName,
           unit_price: getVipRate(levelName),
-          daily_tasks_limit: levelName === 'VIP1' ? 5 :
+          daily_tasks_limit: levelName === 'Intern' ? 3 :
+                             levelName === 'VIP1' ? 5 :
                              levelName === 'VIP2' ? 10 :
                              levelName === 'VIP3' ? 16 :
                              levelName === 'VIP4' ? 31 :
@@ -354,8 +360,8 @@ export const Task = () => {
       }
     } catch (e) {
       console.warn('Failed to fetch membership plan, using defaults.');
-      // Default to VIP1
-      setMembershipPlan({ id: 'fallback', name: 'VIP1', unit_price: 30, daily_tasks_limit: 5 });
+      // Default to Intern
+      setMembershipPlan({ id: 'fallback', name: 'Intern', unit_price: 30, daily_tasks_limit: 3 });
     }
   };
 
@@ -712,29 +718,32 @@ export const Task = () => {
                 </div>
 
                 {/* Hidden video element for time tracking */}
-                <video
-                  className="hidden"
-                  onTimeUpdate={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime, currentTask)}
-                  onEnded={() => handleVideoEnd(currentTask)}
-                  onError={(e) => {
-                    console.error('Video error:', e);
-                    setVideoLoading(false);
-                    setVideoError(true);
-                    toast({
-                      title: "Video Error",
-                      description: "Using fallback mode - task will complete automatically",
-                      variant: "destructive"
-                    });
-                    // Enable submit after a delay as fallback
-                    setTimeout(() => {
-                      setCanSubmit(true);
-                      setTaskProgress(100);
-                    }, 5000);
-                  }}
-                >
-                  <source src={currentTask.video_url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'} type="video/mp4" />
-                  <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4" type="video/mp4" />
-                </video>
+                {currentTask.video_url ? (
+                  <video
+                    className="hidden"
+                    preload="none"
+                    crossOrigin="anonymous"
+                    onTimeUpdate={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime, currentTask)}
+                    onEnded={() => handleVideoEnd(currentTask)}
+                    onError={(e) => {
+                      console.error('Video error:', e);
+                      setVideoLoading(false);
+                      setVideoError(true);
+                      toast({
+                        title: "Video Error",
+                        description: "Using fallback mode - task will complete automatically",
+                        variant: "destructive"
+                      });
+                      // Enable submit after a delay as fallback
+                      setTimeout(() => {
+                        setCanSubmit(true);
+                        setTaskProgress(100);
+                      }, 5000);
+                    }}
+                  >
+                    <source src={currentTask.video_url} type="video/mp4" />
+                  </video>
+                ) : null}
 
 
               </div>
@@ -826,7 +835,7 @@ const TaskCard = ({
               alt={task.title}
               className="w-full h-full object-cover"
               onError={(e) => {
-                e.currentTarget.src = '/src/assets/placeholder.svg';
+                e.currentTarget.src = '/placeholder.svg';
               }}
             />
           </div>

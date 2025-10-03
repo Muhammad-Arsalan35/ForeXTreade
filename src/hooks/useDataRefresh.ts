@@ -34,7 +34,7 @@ export const useDataRefresh = (config: RefreshConfig) => {
         .from('users')
         .select('id')
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!dbUser) return;
 
@@ -73,7 +73,7 @@ export const useDataRefresh = (config: RefreshConfig) => {
         .from('users')
         .select('id')
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!dbUser) return;
 

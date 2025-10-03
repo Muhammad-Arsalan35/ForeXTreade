@@ -2,8 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://woiccythjszfhbypacaa.supabase.co";
-const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvaWNjeXRoanN6ZmhieXBhY2FhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODQ4MjM0NiwiZXhwIjoyMDc0MDU4MzQ2fQ.F1_wsNmySrDhGlstpi3HbAZFWuzFioeGWYTdYA6zlU0";
+// This module is intended for server-side/admin scripts only. Never ship the
+// service role key to the browser. Protect against accidental usage.
+if (typeof window !== 'undefined') {
+  throw new Error('supabaseService must not be used in the browser');
+}
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('Supabase env missing: set SUPABASE_URL and SUPABASE_SERVICE_KEY in your .env');
+  throw new Error('Supabase service environment not configured');
+}
 
 // Service role client bypasses RLS policies
 export const supabaseService = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY, {

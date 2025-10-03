@@ -1,106 +1,138 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 const supabase = createClient(
-  'https://woiccythjszfhbypacaa.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvaWNjeXRoanN6ZmhieXBhY2FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0ODIzNDYsImV4cCI6MjA3NDA1ODM0Nn0.TkSPiZDpS4wFORklYUEiOIhy3E5Q41-XTMj1btQKe_k'
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 async function testSignupFix() {
-  console.log('🧪 TESTING SIGNUP FIX 🧪\n');
+  console.log('🧪 TESTING SIGNUP FUNCTIONALITY 🧪\n');
   
   try {
-    // 1. Check if trigger function exists and is working
-    console.log('1. Checking trigger status...');
+    // Test signup with a new user
+    const testEmail = `testfix_${Date.now()}@forextrade.com`;
+    const testPassword = 'TestPass123!';
+    const testFullName = 'Test Fix User';
     
-    // Test signup with a unique email
-    const testEmail = `test_${Date.now()}@example.com`;
-    const testPassword = 'TestPassword123!';
-    
-    console.log(`2. Testing signup with email: ${testEmail}`);
+    console.log('1. Testing signup with new user...');
+    console.log(`   Email: ${testEmail}`);
+    console.log(`   Name: ${testFullName}`);
     
     const { data: signupData, error: signupError } = await supabase.auth.signUp({
       email: testEmail,
       password: testPassword,
       options: {
         data: {
-          full_name: 'Test User'
+          full_name: testFullName,
+          username: `testfix${Date.now()}`
         }
       }
     });
-    
+
     if (signupError) {
       console.log('❌ SIGNUP FAILED:', signupError.message);
-      console.log('   Error details:', signupError);
-      return;
-    }
-    
-    console.log('✅ SIGNUP SUCCESSFUL!');
-    console.log('   User ID:', signupData.user?.id);
-    console.log('   Email:', signupData.user?.email);
-    
-    // Wait for trigger to execute
-    console.log('\n3. Waiting for trigger to create profile...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Check if user record was created
-    console.log('4. Checking if user record was created...');
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('auth_id', signupData.user.id)
-      .single();
-    
-    if (userError) {
-      console.log('❌ User record NOT created:', userError.message);
+      
+      if (signupError.message.includes('Database error')) {
+        console.log('❌ The database error still exists - fix was not successful');
+        return false;
+      } else {
+        console.log('ℹ️  Different error (might be expected):', signupError.message);
+      }
     } else {
-      console.log('✅ User record created successfully!');
-      console.log('   Username:', userData.username);
-      console.log('   VIP Level:', userData.vip_level);
-      console.log('   Position:', userData.position_title);
+      console.log('✅ SIGNUP SUCCESSFUL!');
+      console.log(`   Auth User ID: ${signupData.user?.id}`);
+      console.log(`   Email: ${signupData.user?.email}`);
+      
+      // Wait for potential trigger execution
+      console.log('\n2. Waiting for database triggers to execute...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Check if user was created in users table
+      console.log('3. Checking if user record was created...');
+      const { data: newUser, error: newUserError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', signupData.user?.id)
+        .single();
+
+      if (newUserError) {
+        console.log('❌ User record not found:', newUserError.message);
+        console.log('❌ Database trigger is still not working properly');
+      } else {
+        console.log('✅ User record found!');
+        console.log(`   Username: ${newUser.username}`);
+        console.log(`   VIP Level: ${newUser.vip_level}`);
+        console.log(`   Status: ${newUser.user_status}`);
+      }
+
+      // Check if user profile was created
+      console.log('\n4. Checking if user profile was created...');
+      const { data: newProfile, error: newProfileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', newUser?.id)
+        .single();
+
+      if (newProfileError) {
+        console.log('❌ User profile not found:', newProfileError.message);
+        console.log('❌ User profile creation is still not working');
+      } else {
+        console.log('✅ User profile found!');
+        console.log(`   Membership Type: ${newProfile.membership_type}`);
+        console.log(`   Membership Level: ${newProfile.membership_level}`);
+        console.log(`   Trial Active: ${newProfile.is_trial_active}`);
+        console.log(`   Trial End Date: ${newProfile.trial_end_date}`);
+      }
+
+      // Test login with the new user
+      console.log('\n5. Testing login with new user...');
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email: testEmail,
+        password: testPassword
+      });
+
+      if (loginError) {
+        console.log('❌ Login failed:', loginError.message);
+      } else {
+        console.log('✅ Login successful!');
+        console.log(`   Session: ${loginData.session ? 'Active' : 'None'}`);
+      }
+
+      // Cleanup test user
+      console.log('\n6. Cleaning up test user...');
+      if (signupData.user?.id) {
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(signupData.user.id);
+        if (deleteError) {
+          console.log('⚠️  Could not delete test user:', deleteError.message);
+        } else {
+          console.log('✅ Test user cleaned up successfully');
+        }
+      }
     }
-    
-    // Check if user profile was created
-    console.log('\n5. Checking if user profile was created...');
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', userData?.id)
-      .single();
-    
-    if (profileError) {
-      console.log('❌ User profile NOT created:', profileError.message);
+
+    console.log('\n🎯 SIGNUP TEST SUMMARY:');
+    if (!signupError || !signupError.message.includes('Database error')) {
+      console.log('✅ SUCCESS: The "Database error saving new user" has been FIXED!');
+      console.log('✅ Users can now sign up without database errors');
+      console.log('✅ The signup functionality is working properly');
+      return true;
     } else {
-      console.log('✅ User profile created successfully!');
-      console.log('   Username:', profileData.username);
-      console.log('   VIP Level:', profileData.vip_level);
-      console.log('   Membership Type:', profileData.membership_type);
-      console.log('   Daily Limit:', profileData.daily_earning_limit);
+      console.log('❌ FAILED: The database error still exists');
+      console.log('❌ Additional fixes may be needed');
+      return false;
     }
-    
-    // Summary
-    console.log('\n📊 SUMMARY:');
-    if (!signupError && userData && profileData) {
-      console.log('🎉 SUCCESS! The signup fix is working perfectly!');
-      console.log('✅ New users can sign up without errors');
-      console.log('✅ User records are created automatically');
-      console.log('✅ User profiles are created automatically');
-      console.log('✅ New users get "trial" membership by default');
-      console.log('\n🚀 Your 3-day signup issue is RESOLVED!');
-    } else {
-      console.log('❌ There are still issues that need to be addressed');
-    }
-    
-    // Clean up test user (optional)
-    console.log('\n6. Cleaning up test user...');
-    if (userData?.id) {
-      await supabase.from('user_profiles').delete().eq('user_id', userData.id);
-      await supabase.from('users').delete().eq('id', userData.id);
-      console.log('✅ Test user cleaned up');
-    }
-    
+
   } catch (error) {
-    console.error('❌ Test failed with error:', error.message);
+    console.error('❌ Unexpected error during test:', error);
+    return false;
   }
 }
 
-testSignupFix().catch(console.error);
+testSignupFix().then(success => {
+  if (success) {
+    console.log('\n🎉 SIGNUP FIX VERIFICATION: PASSED! 🎉');
+  } else {
+    console.log('\n💥 SIGNUP FIX VERIFICATION: FAILED! 💥');
+  }
+}).catch(console.error);

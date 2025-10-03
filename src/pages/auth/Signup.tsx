@@ -150,40 +150,22 @@ export const Signup = () => {
 
       if (data.user) {
         try {
-          // Generate a referral code function
-          const generateReferralCode = () => {
-            return Math.floor(100000 + Math.random() * 900000).toString();
-          };
-
-          // Create user profile in the database using service client to bypass RLS
-          const { error: profileError } = await supabaseService
-            .from('users')
-            .insert({
-              auth_user_id: data.user.id,
+          // Store user metadata for the database trigger to use
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: {
               full_name: formData.fullName,
               username: formData.username,
               phone_number: formattedPhone,
-              vip_level: 'VIP1',
-              user_status: 'active',
-              referral_code: generateReferralCode(),
-              personal_wallet_balance: 0.00,
-              income_wallet_balance: 0.00,
-              total_earnings: 0.00,
-              total_invested: 0.00,
-              position_title: 'Member',
-              referred_by: formData.referralCode || null
-            });
+              referral_code: formData.referralCode || null
+            }
+          });
 
-          if (profileError) {
-            console.error('Profile creation error:', profileError);
-            toast({
-              title: "Profile Creation Failed",
-              description: "Account created but profile setup failed. Please contact support.",
-              variant: "destructive"
-            });
-            setLoading(false);
-            return;
+          if (updateError) {
+            console.error('User metadata update error:', updateError);
           }
+
+          // Wait a moment for the database trigger to create the user profile
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
           // Handle referral logic if referral code is provided
           if (formData.referralCode && formData.referralCode.trim() !== '') {

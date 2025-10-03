@@ -30,6 +30,7 @@ type MembershipPlan = {
   name: string;
   daily_video_limit: number;
   price: number;
+  video_rate: number;
   duration_days: number;
   is_active: boolean;
 };
@@ -72,13 +73,35 @@ const Dashboard = () => {
     // Track page view
     trackPageView('/dashboard');
     
-    const fetchVipData = async () => {
+    // Fetch membership plans first (public data)
+    const fetchMembershipPlans = async () => {
+      try {
+        const { data: plansData, error: plansError } = await supabase
+          .from('membership_plans')
+          .select('*')
+          .eq('is_active', true)
+          .order('price', { ascending: true });
+
+        if (plansError) {
+          console.error('Error fetching plans:', plansError);
+        } else {
+          setPlans(plansData || []);
+        }
+      } catch (error) {
+        console.error('Error fetching membership plans:', error);
+      }
+    };
+    
+    const fetchUserData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setLoadingVip(false);
+          return;
+        }
 
         const [{ data: usersData, error: usersError }] = await Promise.all([
-          supabase.from('users').select('*').eq('auth_user_id', user.id).single()
+          supabase.from('users').select('*').eq('auth_user_id', user.id).maybeSingle()
         ]);
 
         if (usersError) {
@@ -91,15 +114,14 @@ const Dashboard = () => {
                 auth_user_id: user.id,
                 full_name: user.user_metadata?.full_name || 'User',
                 username: user.email?.split('@')[0] || 'user',
-                phone_number: user.phone || null,
+                phone_number: user.phone || (user.email?.split('@')[0] || ''),
                 referral_code: Math.random().toString(36).substring(2, 10).toUpperCase(),
                 vip_level: null,
-                position_title: 'Member',
                 total_earnings: 0,
                 referral_count: 0
               })
               .select()
-              .single();
+              .maybeSingle();
               
             if (createError) {
               console.error('Create user error:', createError);
@@ -117,7 +139,7 @@ const Dashboard = () => {
             const { count, error: countError } = await supabase
               .from('team_structure')
               .select('*', { count: 'exact', head: true })
-              .eq('referrer_id', usersData.id);
+              .eq('parent_id', usersData.id);
               
             if (!countError) {
               // Update user record with referral count
@@ -133,33 +155,21 @@ const Dashboard = () => {
           setUserRecord(usersData as unknown as UsersTableRow);
         }
 
-        // Fetch membership plans from the database
-        const { data: plansData, error: plansError } = await supabase
-          .from('membership_plans')
-          .select('*')
-          .eq('is_active', true)
-          .order('price', { ascending: true });
-
-        if (plansError) {
-          console.error('Error fetching plans:', plansError);
-        } else {
-          setPlans(plansData || []);
-        }
-
         // Fetch active plan if any
         const { data: activePlanData, error: activePlanError } = await supabase
           .from('user_plans')
           .select('plan_id, membership_plans(*)')
-          .eq('user_id', user.id)
+          .eq('user_id', internalUserId)
           .eq('is_active', true)
           .single();
 
-        if (!activePlanError && activePlanData) {
+        if (!activePlanError && activePlanData && activePlanData.membership_plans) {
+          // Fix: membership_plans is already a single object, not an array
           setActivePlan(activePlanData.membership_plans);
         }
 
       } catch (error) {
-        console.error('Error in fetchVipData:', error);
+        console.error('Error in fetchUserData:', error);
         toast({
           title: "Error",
           description: "Failed to load user data. Please try again.",
@@ -170,7 +180,11 @@ const Dashboard = () => {
       }
     };
 
-    fetchVipData();
+    // Fetch membership plans immediately (public data)
+    fetchMembershipPlans();
+    
+    // Fetch user-specific data
+    fetchUserData();
   }, [toast]);
 
   // Update earning rate and display values when active plan changes
@@ -225,25 +239,28 @@ const Dashboard = () => {
 
       userPlansChannel = (supabase as unknown as any)
         .channel('dashboard-user-plans')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_plans', filter: `user_id=eq.${user.id}` }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_plans', filter: `user_id=eq.${internalUserId}` }, () => {
           (async () => {
             const { data: activePlanData } = await supabase
               .from('user_plans')
               .select('plan_id, membership_plans(*)')
-              .eq('user_id', user.id)
+              .eq('user_id', internalUserId)
               .eq('is_active', true)
               .single();
-            if (activePlanData) setActivePlan(activePlanData.membership_plans);
+            if (activePlanData && activePlanData.membership_plans) {
+              // Fix: membership_plans is already a single object, not an array
+              setActivePlan(activePlanData.membership_plans);
+            }
             // Recompute today's remaining tasks whenever plan changes
             await recomputeTodaysRemainingTasks(user.id, activePlanData?.membership_plans?.daily_video_limit);
           })();
         })
         .subscribe();
 
-      // Subscribe to user_tasks changes for real-time active tasks count
+      // Subscribe to daily_video_tasks changes for real-time active tasks count
       userTasksChannel = (supabase as unknown as any)
         .channel('dashboard-user-tasks')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_tasks', filter: `user_id=eq.${user.id}` }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_video_tasks', filter: `user_id=eq.${user.id}` }, () => {
           (async () => {
             await recomputeTodaysRemainingTasks(user.id, activePlan?.daily_video_limit);
           })();
@@ -271,7 +288,7 @@ const Dashboard = () => {
         .from('users')
         .select('id')
         .eq('auth_user_id', authUserId)
-        .single();
+        .maybeSingle();
       const internalUserId = dbUser?.id || authUserId;
 
       const start = new Date();
@@ -279,13 +296,19 @@ const Dashboard = () => {
       const end = new Date();
       end.setHours(23, 59, 59, 999);
 
-      const { count } = await supabase
-        .from('user_tasks')
-        .select('*', { count: 'exact', head: true })
+      const { count, error } = await supabase
+        .from('task_completions')
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', internalUserId)
-        .eq('status', 'completed')
         .gte('completed_at', start.toISOString())
         .lte('completed_at', end.toISOString());
+
+      if (error && (error as any).code === 'PGRST205') {
+        // Table missing: treat as zero completed
+        console.warn('task_completions table missing when computing today count');
+      } else if (error) {
+        console.error('Error counting today completions:', error);
+      }
 
       const completed = count || 0;
       setCompletedTodayCount(completed);
@@ -572,9 +595,9 @@ const Dashboard = () => {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{remainingTasks}</div>
+            <div className="text-2xl font-bold">{dailyLimit}</div>
             <p className="text-xs text-muted-foreground">
-              Remaining tasks ({completedToday}/{dailyLimit})
+              Remaining tasks ({remainingTasks}/{dailyLimit})
             </p>
           </CardContent>
         </Card>
