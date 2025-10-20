@@ -19,6 +19,9 @@ DECLARE
     base_username TEXT;
     referral_code_value TEXT;
     referrer_user_id UUID;
+    referrer_level CHAR(1);
+    new_referral_level CHAR(1);
+    b_level_referral_count INTEGER := 0;
 BEGIN
     -- Generate base username from metadata or email
     IF NEW.raw_user_meta_data->>'username' IS NOT NULL THEN
@@ -47,6 +50,45 @@ BEGIN
         FROM public.users 
         WHERE referral_code = NEW.raw_user_meta_data->>'referral_code'
         LIMIT 1;
+    END IF;
+
+    -- Determine referrer_level from user_profiles if available; default to 'A'
+    IF referrer_user_id IS NOT NULL THEN
+        SELECT COALESCE(up.referral_level, 'A')
+        INTO referrer_level
+        FROM public.user_profiles up
+        WHERE up.user_id = referrer_user_id;
+    ELSE
+        referrer_level := 'A';
+    END IF;
+
+    -- Compute new user's referral level based on business rules
+    -- No referrer => 'A'; Referrer 'A' => 'B'; Referrer 'B' => 'C'; Referrer 'C' => cannot refer
+    IF referrer_user_id IS NULL THEN
+        new_referral_level := 'A';
+    ELSIF referrer_level = 'A' THEN
+        new_referral_level := 'B';
+    ELSIF referrer_level = 'B' THEN
+        new_referral_level := 'C';
+    ELSE
+        -- Referrer is 'C' => disallow referral (user becomes 'A' with no referrer)
+        referrer_user_id := NULL;
+        new_referral_level := 'A';
+    END IF;
+
+    -- Enforce B-level referral cap: max 10 C-level referrals
+    IF referrer_user_id IS NOT NULL AND referrer_level = 'B' THEN
+        SELECT COUNT(*)
+        INTO b_level_referral_count
+        FROM public.users u
+        JOIN public.user_profiles up ON up.user_id = u.id
+        WHERE u.referred_by = referrer_user_id AND up.referral_level = 'C';
+
+        IF b_level_referral_count >= 10 THEN
+            -- Disallow further referrals from B-level beyond the cap
+            referrer_user_id := NULL;
+            new_referral_level := 'A';
+        END IF;
     END IF;
     
     -- Insert into public.users table (INTERN LEVEL - consistent with user_profiles)
@@ -88,6 +130,7 @@ BEGIN
         phone_number,
         membership_type,
         membership_level,
+        referral_level,
         is_trial_active,
         trial_start_date,
         trial_end_date,
@@ -103,6 +146,7 @@ BEGIN
         COALESCE(NEW.raw_user_meta_data->>'phone_number', NEW.phone, ''),
         'intern', -- Consistent with users.vip_level = 'Intern'
         'Intern',
+        new_referral_level,
         true,
         CURRENT_DATE,
         CURRENT_DATE + INTERVAL '3 days', -- 3-day trial period
